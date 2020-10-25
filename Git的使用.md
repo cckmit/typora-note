@@ -23,7 +23,8 @@ $ git push -u origin1 master #推送到远程
 git rm test.txt  #选择要删除的文件
 tm 'test.txt'
 git commit  -m  "删除"  #提交并添加备注
-$ git push -u origin1 master #推送到远程
+$ git push -u origin1 master #正常推送到远程
+$ git push -f origin1 master #强制推送到远程
 ```
 
 4.使用命令行clone远程项目
