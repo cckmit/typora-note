@@ -90,7 +90,31 @@ public class Application {
 mybatis-plus.configuration.log-impl=org.apache.ibatis.logging.stdout.stdOutImpl
 ```
 
-### 5.CRUD扩展
+## 5.分页插件
+
+```java
+//Spring boot方式
+@Configuration
+@MapperScan("com.baomidou.cloud.service.*.mapper*")
+public class MybatisPlusConfig {
+
+    @Bean
+    public PaginationInterceptor paginationInterceptor() {
+        PaginationInterceptor paginationInterceptor = new PaginationInterceptor();
+        // 设置请求的页面大于最大页后操作， true调回到首页，false 继续请求  默认false
+        // paginationInterceptor.setOverflow(false);
+        // 设置最大单页限制数量，默认 500 条，-1 不受限制
+        // paginationInterceptor.setLimit(500);
+        // 开启 count 的 join 优化,只针对部分 left join
+        paginationInterceptor.setCountSqlParser(new JsqlParserCountOptimize(true));
+        return paginationInterceptor;
+    }
+}
+```
+
+
+
+### 6.CRUD扩展
 
 #### id主键生成策略
 
@@ -189,38 +213,8 @@ mybatis-plus.configuration.log-impl=org.apache.ibatis.logging.stdout.stdOutImpl
   </dependency>
   <dependency>
     <groupId>org.springframework</groupId>
-    <artifactId>spring-core</artifactId>
+    <artifactId>spring-orm</artifactId>
     <version>5.0.8.RELEASE</version>
-  </dependency>
-  <dependency>
-    <groupId>org.springframework</groupId>
-    <artifactId>spring-beans</artifactId>
-    <version>5.0.8.RELEASE</version>
-  </dependency>
-  <dependency>
-    <groupId>org.springframework</groupId>
-    <artifactId>spring-aop</artifactId>
-    <version>5.0.8.RELEASE</version>
-  </dependency>
-  <dependency>
-    <groupId>org.springframework</groupId>
-    <artifactId>spring-expression</artifactId>
-    <version>5.0.8.RELEASE</version>
-  </dependency>
-  <dependency>
-    <groupId>org.springframework</groupId>
-    <artifactId>spring-jdbc</artifactId>
-    <version>5.1.0.RELEASE</version>
-  </dependency>
-  <dependency>
-    <groupId>org.springframework</groupId>
-    <artifactId>spring-tx</artifactId>
-    <version>5.1.0.RELEASE</version>
-  </dependency>
-  <dependency>
-    <groupId>org.aspectj</groupId>
-    <artifactId>aspectjweaver</artifactId>
-    <version>1.9.1</version>
   </dependency>
   <!-- spring mvc需要的jar包 -->
   <dependency>
@@ -299,7 +293,20 @@ mybatis-plus.configuration.log-impl=org.apache.ibatis.logging.stdout.stdOutImpl
         <property name="configLocation" value="classpath:mybatis-config.xml"></property>
         <!-- 实体类别名处理 -->
         <property name="typeAliasesPackage" value="com.domain"></property>
-    </bean>
+     <!-- 注入全局MP策略配置 -->
+        <property name="globalConfig" ref="globalConfiguration"></property>
+     </bean>
+     <!-- 定义MybatisPlus的全局策略配置-->
+     <bean id ="globalConfiguration" class="com.baomidou.mybatisplus.entity.GlobalConfiguration">
+        <!-- 在2.3版本以后，dbColumnUnderline 默认值就是true -->
+        <property name="dbColumnUnderline" value="true"></property>
+         
+         <!-- 全局的主键策略 -->
+         <property name="idType" value="0"></property> //0:主键自增；1： 
+         
+         <!-- 全局的表前缀策略配置 -->
+         <property name="tablePrefix" value="tbl_"></property>
+     </bean>
 
     <!--配置 mybatis 扫描 mapper 接口的路径-->
     <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
@@ -365,7 +372,30 @@ jdbc.password=123456
 </log4j:configuration>
 ```
 
-### 6.测试
+### 6.分页插件
+
+```xml
+<!-- spring xml 方式 -->
+<property name="plugins">
+    <array>
+        <bean class="com.baomidou.mybatisplus.extension.plugins.PaginationInterceptor">
+            <property name="sqlParser" ref="自定义解析类、可以没有"/>
+            <property name="dialectClazz" value="自定义方言类、可以没有"/>
+            <!-- COUNT SQL 解析.可以没有 -->
+            <property name="countSqlParser" ref="countSqlParser"/>
+        </bean>
+    </array>
+</property>
+
+<bean id="countSqlParser" class="com.baomidou.mybatisplus.extension.plugins.pagination.optimize.JsqlParserCountOptimize">
+    <!-- 设置为 true 可以优化部分 left join 的sql -->
+    <property name="optimizeJoin" value="true"/>
+</bean>
+```
+
+
+
+### 7.测试
 
 ```java
    @Test
