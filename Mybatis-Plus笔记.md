@@ -155,15 +155,7 @@ public class MybatisPlusConfig {
       <lombok.version>1.16.18</lombok.version>
   </properties>
 
-
   <dependencies>
-  <!-- servlet依赖，版本需要和servlet容器的一致 -->
-  <dependency>
-    <groupId>javax.servlet</groupId>
-    <artifactId>javax.servlet-api</artifactId>
-    <version>3.1.0</version>
-    <scope>provided</scope>
-  </dependency>
     <!-- Mybatis-Plus  依赖
             mybatis-plus 会自动维护 mybatis 以及 mybatis-spring 相关的依赖
             Mybatis 及 Mybatis-Spring 依赖请勿加入项目配置，以免引起版本冲突！！！Mybatis-Plus 会自动帮你维护！
@@ -191,7 +183,6 @@ public class MybatisPlusConfig {
       <artifactId>druid</artifactId>
       <version>${druid.version}</version>
     </dependency>
-
     <!--lombok -->
     <dependency>
       <groupId>org.projectlombok</groupId>
@@ -204,7 +195,25 @@ public class MybatisPlusConfig {
     <artifactId>mysql-connector-java</artifactId>
     <version>8.0.12</version>
   </dependency>
-
+    <!--mp代码生成器-->
+    <dependency>
+      <groupId>com.baomidou</groupId>
+      <artifactId>mybatis-plus-generator</artifactId>
+      <version>3.2.0</version>
+    </dependency>
+    <!-- Apache velocity-->
+    <dependency>
+      <groupId>org.apache.velocity</groupId>
+      <artifactId>velocity-engine-core</artifactId>
+      <version>2.2</version>
+    </dependency>
+    <!-- sfl4j -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
+      <version>1.7.25</version>
+      <scope>compile</scope>
+    </dependency>
   <!-- 下面是spring需要的包，包括必备的core、beans、context、aop，与数据库相关的jdbc、tx，同时aop需要用到aspectjweaver包 -->
   <dependency>
     <groupId>org.springframework</groupId>
@@ -244,8 +253,6 @@ public class MybatisPlusConfig {
     </plugins>
   </build>
 </project>
-
-
 ```
 
 ### 2.applicationContext.xml配置
@@ -293,20 +300,7 @@ public class MybatisPlusConfig {
         <property name="configLocation" value="classpath:mybatis-config.xml"></property>
         <!-- 实体类别名处理 -->
         <property name="typeAliasesPackage" value="com.domain"></property>
-     <!-- 注入全局MP策略配置 -->
-        <property name="globalConfig" ref="globalConfiguration"></property>
-     </bean>
-     <!-- 定义MybatisPlus的全局策略配置-->
-     <bean id ="globalConfiguration" class="com.baomidou.mybatisplus.entity.GlobalConfiguration">
-        <!-- 在2.3版本以后，dbColumnUnderline 默认值就是true -->
-        <property name="dbColumnUnderline" value="true"></property>
-         
-         <!-- 全局的主键策略 -->
-         <property name="idType" value="0"></property> //0:主键自增；1： 
-         
-         <!-- 全局的表前缀策略配置 -->
-         <property name="tablePrefix" value="tbl_"></property>
-     </bean>
+    </bean>
 
     <!--配置 mybatis 扫描 mapper 接口的路径-->
     <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
@@ -319,7 +313,7 @@ public class MybatisPlusConfig {
 
 ```xml
 jdbc.driver=com.mysql.cj.jdbc.Driver
-jdbc.url=jdbc:mysql://localhost:3306/mp?useUnicode=true&characterEncoding=UTF-8&useSSL=false
+jdbc.url=jdbc:mysql://localhost:3306/stu?useUnicode=true&characterEncoding=UTF-8&useSSL=false
 jdbc.username=root
 jdbc.password=123456
 ```
@@ -340,7 +334,6 @@ jdbc.password=123456
     <typeAliases>
         <typeAlias alias="user" type="com.domain.User" />
     </typeAliases>
-    <!-- mapper.xml -->
 <!--    <mappers>-->
 <!--        <mapper resource="BlogMapper.xml"/>-->
 <!--    </mappers>-->
@@ -406,5 +399,109 @@ jdbc.password=123456
         users.forEach(System.out::println);
         }
     }
+```
+
+## 三、springmvc
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:p="http://www.springframework.org/schema/p"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:mvc="http://www.springframework.org/schema/mvc"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc-4.0.xsd
+        http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+
+
+    <!-- 配置推荐使用注解驱动，会默认的加载上面的两个 HandlerMapping, HandlerAdapter -->
+    <mvc:annotation-driven />
+    <!-- 开启springmvc注解扫描 -->
+    <context:component-scan base-package="com.controller"></context:component-scan>
+    <!-- 这个是excelView的加载，原生态ssm不需要，所以这里是可以省略的 -->
+    <!-- <bean name="excelView" class="cn.usermanage.view.UserExcelView"></bean> -->
+
+    <!-- 视图解析器 -->
+    <bean
+            class="org.springframework.web.servlet.view.InternalResourceViewResolver">
+        <!-- 前缀,这里是请求的路径文件 -->
+        <property name="prefix" value="/WEB-INF/views/"></property>
+        <!-- 后缀 ，支持.jsp的请求-->
+        <property name="suffix" value=".jsp"></property>
+    </bean>
+    <!-- 以上是原生态的ssm配置 -->
+
+    <!-- 定义文件上传解析器 -->
+    <!-- <bean id="multipartResolver"
+    class="org.springframework.web.multipart.commons.CommonsMultipartResolver">
+    设定默认编码
+    <property name="defaultEncoding" value="UTF-8"></property>
+    设定文件上传的最大值5MB，5*1024*1024
+    <property name="maxUploadSize" value="5242880"></property>
+    </bean> -->
+
+    <!-- 解决静态资源被拦截的问题 -->
+    <!-- <mvc:default-servlet-handler/> -->
+
+
+</beans>
+```
+
+## web.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://java.sun.com/xml/ns/javaee" xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_2_5.xsd" version="2.5">
+    <display-name>ssmzh</display-name>
+    <!-- 加载spring相关配置 -->
+    <context-param>
+        <param-name>contextConfigLocation</param-name>
+        <!-- 这里使用的是以spring*.xml的通配符方式加载配置的 -->
+        <param-value>classpath:applicationContext.xml</param-value>
+    </context-param>
+    <!--Spring的ApplicationContext 载入 -->
+    <listener>
+        <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+    </listener>
+
+    <!-- 编码过滤器，以UTF8编码 -->
+    <filter>
+        <filter-name>encodingFilter</filter-name>
+        <filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
+        <init-param>
+            <param-name>encoding</param-name>
+            <param-value>UTF8</param-value>
+        </init-param>
+    </filter>
+    <filter-mapping>
+        <filter-name>encodingFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+
+    <!-- 配置SpringMVC -->
+    <servlet>
+        <servlet-name>usermanage</servlet-name>
+        <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+        <init-param>
+            <!-- 指定加载外部的spring-mvc配置文件 -->
+            <param-name>contextConfigLocation</param-name>
+            <param-value>classpath:spring-mvc.xml</param-value>
+        </init-param>
+        <!-- 这个可以不配，可以省略 -->
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>usermanage</servlet-name>
+        <!-- 拦截所有的请求，除了jsp。  /xx.html js css 会 -->
+        <url-pattern>/</url-pattern>
+    </servlet-mapping>
+
+    <welcome-file-list>
+        <welcome-file>index.jsp</welcome-file>
+    </welcome-file-list>
+
+</web-app>
 ```
 
