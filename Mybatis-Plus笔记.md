@@ -49,11 +49,7 @@ public class User {
         <artifactId>mybatis-plus-boot-starter</artifactId>
         <version>3.4.0</version>
     </dependency>
-    <dependency>
-        <groupId>com.h2database</groupId>
-        <artifactId>h2</artifactId>
-        <scope>runtime</scope>
-    </dependency>
+
 </dependencies>
 ```
 
@@ -330,13 +326,11 @@ jdbc.password=123456
         <!-- 开启mybatis-plus打印sql语句-->
         <setting name="logImpl" value="org.apache.ibatis.logging.stdout.StdOutImpl"/>
     </settings>
-    <!-- 实体类别名处理 -->
-    <typeAliases>
-        <typeAlias alias="user" type="com.domain.User" />
-    </typeAliases>
-<!--    <mappers>-->
-<!--        <mapper resource="BlogMapper.xml"/>-->
-<!--    </mappers>-->
+    <plugins>
+        <plugin interceptor="com.baomidou.mybatisplus.extension.plugins.PaginationInterceptor">
+            <property name="dialect" value="mysql"/>
+        </plugin>
+    </plugins>
 </configuration>
 ```
 
@@ -368,22 +362,22 @@ jdbc.password=123456
 ### 6.分页插件
 
 ```xml
-<!-- spring xml 方式 -->
-<property name="plugins">
-    <array>
-        <bean class="com.baomidou.mybatisplus.extension.plugins.PaginationInterceptor">
-            <property name="sqlParser" ref="自定义解析类、可以没有"/>
-            <property name="dialectClazz" value="自定义方言类、可以没有"/>
-            <!-- COUNT SQL 解析.可以没有 -->
-            <property name="countSqlParser" ref="countSqlParser"/>
-        </bean>
-    </array>
-</property>
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+        PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+    <settings>
+        <!-- 开启mybatis-plus打印sql语句-->
+        <setting name="logImpl" value="org.apache.ibatis.logging.stdout.StdOutImpl"/>
+    </settings>
+    <plugins>
+        <plugin interceptor="com.baomidou.mybatisplus.extension.plugins.PaginationInterceptor">
+            <property name="dialect" value="mysql"/>
+        </plugin>
+    </plugins>
+</configuration>
 
-<bean id="countSqlParser" class="com.baomidou.mybatisplus.extension.plugins.pagination.optimize.JsqlParserCountOptimize">
-    <!-- 设置为 true 可以优化部分 left join 的sql -->
-    <property name="optimizeJoin" value="true"/>
-</bean>
 ```
 
 
@@ -415,11 +409,22 @@ jdbc.password=123456
 
 
     <!-- 配置推荐使用注解驱动，会默认的加载上面的两个 HandlerMapping, HandlerAdapter -->
-    <mvc:annotation-driven />
+        <!-- 注解驱动 -->
+        <mvc:annotation-driven>
+            <!-- 安装FastJson,转换器 -->
+            <mvc:message-converters>
+                <bean class="com.alibaba.fastjson.support.spring.FastJsonHttpMessageConverter">
+                    <!-- 声明转换类型:json -->
+                    <property name="supportedMediaTypes">
+                        <list>
+                            <value>application/json</value>
+                        </list>
+                    </property>
+                </bean>
+            </mvc:message-converters>
+        </mvc:annotation-driven>
     <!-- 开启springmvc注解扫描 -->
-    <context:component-scan base-package="com.controller"></context:component-scan>
-    <!-- 这个是excelView的加载，原生态ssm不需要，所以这里是可以省略的 -->
-    <!-- <bean name="excelView" class="cn.usermanage.view.UserExcelView"></bean> -->
+    <context:component-scan base-package="com.frame.modules.controller"></context:component-scan>
 
     <!-- 视图解析器 -->
     <bean
@@ -427,27 +432,18 @@ jdbc.password=123456
         <!-- 前缀,这里是请求的路径文件 -->
         <property name="prefix" value="/WEB-INF/views/"></property>
         <!-- 后缀 ，支持.jsp的请求-->
-        <property name="suffix" value=".jsp"></property>
+        <property name="suffix" value=".html"></property>
     </bean>
-    <!-- 以上是原生态的ssm配置 -->
-
-    <!-- 定义文件上传解析器 -->
-    <!-- <bean id="multipartResolver"
-    class="org.springframework.web.multipart.commons.CommonsMultipartResolver">
-    设定默认编码
-    <property name="defaultEncoding" value="UTF-8"></property>
-    设定文件上传的最大值5MB，5*1024*1024
-    <property name="maxUploadSize" value="5242880"></property>
-    </bean> -->
 
     <!-- 解决静态资源被拦截的问题 -->
-    <!-- <mvc:default-servlet-handler/> -->
-
-
+    <mvc:default-servlet-handler/>
+    <mvc:resources mapping="/static/**" location="/static/"  />
+    <mvc:resources mapping="/lay/**" location="/static/assets/libs/layui/lay/"  />
+    <mvc:resources mapping="/json/**" location="/static/json/"  />
 </beans>
 ```
 
-## web.xml
+## 四、web.xml
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -503,5 +499,75 @@ jdbc.password=123456
     </welcome-file-list>
 
 </web-app>
+```
+
+## 五、代码生成器
+
+```java
+import com.baomidou.mybatisplus.annotation.DbType;
+import com.baomidou.mybatisplus.generator.AutoGenerator;
+import com.baomidou.mybatisplus.generator.config.DataSourceConfig;
+import com.baomidou.mybatisplus.generator.config.GlobalConfig;
+import com.baomidou.mybatisplus.generator.config.PackageConfig;
+import com.baomidou.mybatisplus.generator.config.StrategyConfig;
+
+public class Generate {
+    public static void main(String []args){
+        AutoGenerator mpg = new AutoGenerator();
+
+        // 全局配置
+        GlobalConfig gc = new GlobalConfig();
+        gc.setOutputDir("I:\\repository\\repo4\\ssm-demo\\ssm-demo\\src\\main\\java");    //输出文件路径
+        gc.setFileOverride(true);   //覆盖原有文件
+        gc.setActiveRecord(false);// 不需要ActiveRecord特性的请改为false
+        gc.setEnableCache(false);// XML 二级缓存
+        gc.setBaseResultMap(true);// XML ResultMap
+        gc.setBaseColumnList(true);// XML columList
+        gc.setAuthor("winjay");// 作者
+
+        // 自定义文件命名，注意 %s 会自动填充表实体属性！
+        gc.setControllerName("%sController");
+        gc.setServiceName("%sService");
+        gc.setServiceImplName("%sServiceImpl");
+        gc.setMapperName("%sMapper");
+        gc.setXmlName("%sMapper");
+        mpg.setGlobalConfig(gc);
+
+        // 数据源配置
+        DataSourceConfig dsc = new DataSourceConfig();
+        dsc.setDbType(DbType.MYSQL);
+        dsc.setDriverName("com.mysql.cj.jdbc.Driver");
+        dsc.setUsername("root");
+        dsc.setPassword("123456");
+        dsc.setUrl("jdbc:mysql://localhost:3306/supermarket?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=GMT%2B8");
+        mpg.setDataSource(dsc);
+
+        // 策略配置
+        StrategyConfig strategy = new StrategyConfig();
+         strategy.setTablePrefix(new String[] { "s_" });// 此处可以修改为您的表前缀
+        strategy.setInclude(new String[] { "s_worker" }); // 需要生成的表
+        strategy.setSuperServiceClass(null);
+        strategy.setSuperServiceImplClass(null);
+        strategy.setSuperMapperClass(null);
+
+        mpg.setStrategy(strategy);
+
+        // 包配置
+        PackageConfig pc = new PackageConfig();
+        pc.setParent("com.frame.modules");
+        pc.setController("controller");
+        pc.setService("service");
+        pc.setServiceImpl("service.impl");
+        pc.setMapper("dao");
+        pc.setEntity("pojo");
+        pc.setXml("xml");
+        mpg.setPackageInfo(pc);
+
+        // 执行生成
+        mpg.execute();
+
+
+    }
+}
 ```
 
