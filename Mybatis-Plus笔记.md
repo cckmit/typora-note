@@ -331,6 +331,15 @@ jdbc.password=123456
             <property name="dialect" value="mysql"/>
         </plugin>
     </plugins>
+    <!-- 设置全局配置 -->
+    <settings>
+        <!-- 使用主键自增策略 -->
+        <setting name="useGeneratedKeys" value="true" />
+        <!-- select name as title from user 用于识别别名, -->
+        <setting name="useColumnLabel" value="true" />
+        <!-- 开启驼峰命名转换，如：table中(create_time)->entity(createTime)这样在sql语句中就不需要使用as来显式的去定义别名 -->
+        <setting name="mapUnderscoreToCamelCase" value="true" />
+    </settings>
 </configuration>
 ```
 
