@@ -30,7 +30,7 @@ $ git push -f origin1 master #强制推送到远程
 4.使用命令行clone远程项目
 
 ```shell
-$ git clone git@github.com:winjayok/repo3.git
+$ git clone git@github.com:winjayok/supermarket.git
 ```
 
 5.命令大全

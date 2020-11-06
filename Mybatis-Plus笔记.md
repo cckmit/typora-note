@@ -14,12 +14,26 @@
 import lombok.*;
 
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class User {
     private Long id;
     private String name;
     private Integer age;
     private String email;
 }
+```
+
+## idea整合lombok
+
+第一个是依赖，第二个是idea的lombok插件，二者缺一不可
+
+```xml
+<dependency>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok</artifactId>
+        <optional>true</optional>
+    </dependency>
 ```
 
 
@@ -347,9 +361,9 @@ jdbc.password=123456
 ### 5.log4j.xml配置
 
 ```xml
-<?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
-<log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/">
+<?xml version="1.0" encoding="GB2312" ?>
+<!DOCTYPE log4j:configuration SYSTEM "http://logging.apache.org/log4j/1.2/apidocs/org/apache/log4j/xml/doc-files/log4j.dtd">
+<log4j:configuration debug="true">
     <appender name="STDOUT" class="org.apache.log4j.ConsoleAppender">
         <param name="Encoding" value="UTF-8"/>
         <layout class="org.apache.log4j.PatternLayout">
@@ -441,7 +455,7 @@ jdbc.password=123456
             class="org.springframework.web.servlet.view.InternalResourceViewResolver">
         <!-- 前缀,这里是请求的路径文件 -->
         <property name="prefix" value="/WEB-INF/views/"></property>
-        <!-- 后缀 ，支持.jsp的请求-->
+        <!-- 后缀 ，支持.jsp的请求,.html为支持html请求-->
         <property name="suffix" value=".html"></property>
     </bean>
 
