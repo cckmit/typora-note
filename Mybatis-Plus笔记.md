@@ -297,7 +297,6 @@ public class MybatisPlusConfig {
         <!-- 实体类别名处理 -->
         <property name="typeAliasesPackage" value="com.domain"></property>
     </bean>
-
     <!--配置 mybatis 扫描 mapper 接口的路径-->
     <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
         <property name="basePackage" value="com.mapper"></property>
