@@ -310,6 +310,12 @@ public class MybatisPlusConfig {
         <property name="configLocation" value="classpath:mybatis-config.xml"></property>
         <!-- 实体类别名处理 -->
         <property name="typeAliasesPackage" value="com.domain"></property>
+        <!-- 扫描xml文件 -->
+        <property name="mapperLocations">
+            <list>
+                <value>classpath*:mapper/*.xml</value>
+            </list>
+        </property>
     </bean>
     <!--配置 mybatis 扫描 mapper 接口的路径-->
     <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
@@ -613,5 +619,68 @@ public class Generate {
 
     }
 }
+```
+
+```java
+public class MyBatisGenertor {
+    public static void main(String[] args) {
+        // 代码自动生成器
+        AutoGenerator autoGenerator = new AutoGenerator();
+        // 全局配置
+        GlobalConfig globalConfig = new GlobalConfig(); // 导generator包
+        String property = System.getProperty("user.dir"); // 获取用户的目录
+        globalConfig.setOutputDir(property + "src/main/java");
+        globalConfig.setAuthor("YarMar");
+        globalConfig.setFileOverride(false);
+        globalConfig.setOpen(false);
+        globalConfig.setServiceName("%sService"); // 去掉servic的i前缀
+        globalConfig.setIdType(IdType.ID_WORKER);
+        globalConfig.setDateType(DateType.ONLY_DATE);
+        globalConfig.setSwagger2(true);
+
+        autoGenerator.setGlobalConfig(globalConfig);
+
+        // 设置数据源
+        DataSourceConfig dt = new DataSourceConfig();
+        dt.setUrl("jdbc:mysql://localhost:3306/dome?useSSL=false&useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC");
+        dt.setUsername("root");
+        dt.setPassword("123456");
+        dt.setDriverName("com.mysql.cj.jdbc.Driver");
+
+        // 包的配置
+        PackageConfig packageConfig = new PackageConfig();
+        packageConfig.setModuleName("bool");
+        packageConfig.setParent("com.dc.yamar");
+        packageConfig.setEntity("entity");
+        packageConfig.setMapper("mapper");
+        packageConfig.setService("service");
+        packageConfig.setController("controller");
+
+        autoGenerator.setPackageInfo(packageConfig);
+
+        // 配置策略
+        StrategyConfig strategyConfig = new StrategyConfig();
+        strategyConfig.setInclude("user"); // 设置要隐射的表 可以多张
+        strategyConfig.setNaming(NamingStrategy.underline_to_camel);
+        strategyConfig.setColumnNaming(NamingStrategy.underline_to_camel);
+        strategyConfig.setEntityLombokModel(true);
+        strategyConfig.setRestControllerStyle(true);
+        strategyConfig.setLogicDeleteFieldName("isDelete"); // 逻辑删除
+        // 自动填充
+        TableFill createTime = new TableFill("create_time", FieldFill.INSERT);
+        TableFill updateTime = new TableFill("update_time", FieldFill.INSERT_UPDATE);
+
+        ArrayList<TableFill> list = new ArrayList<>();
+        list.add(createTime);
+        list.add(updateTime);
+        strategyConfig.setTableFillList(list);
+
+        strategyConfig.setVersionFieldName("version"); //乐观锁
+        strategyConfig.setRestControllerStyle(true);
+        strategyConfig.setControllerMappingHyphenStyle(true); // 启动下划线
+
+        autoGenerator.setStrategy(strategyConfig);
+
+        autoGenerator.execute(); //执行
 ```
 
