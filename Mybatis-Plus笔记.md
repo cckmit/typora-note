@@ -458,7 +458,27 @@ jdbc.password=123456
         <!-- 后缀 ，支持.jsp的请求,.html为支持html请求-->
         <property name="suffix" value=".html"></property>
     </bean>
+    
+<!-- 使用thymeleaf解析 -->
+    <bean id="templateResolver"
+          class="org.thymeleaf.spring5.templateresolver.SpringResourceTemplateResolver">
+        <property name="prefix" value="/WEB-INF/views/" />
+        <property name="suffix" value=".html" />
+        <property name="templateMode" value="HTML" />
+        <property name="cacheable" value="false" />
+    </bean>
 
+    <bean id="templateEngine"
+          class="org.thymeleaf.spring5.SpringTemplateEngine">
+        <property name="templateResolver" ref="templateResolver" />
+    </bean>
+
+    <bean class="org.thymeleaf.spring5.view.ThymeleafViewResolver">
+        <property name="templateEngine" ref="templateEngine" />
+        <!--解决中文乱码-->
+        <property name="characterEncoding" value="UTF-8"/>
+    </bean>
+    
     <!-- 解决静态资源被拦截的问题 -->
     <mvc:default-servlet-handler/>
     <mvc:resources mapping="/static/**" location="/static/"  />
