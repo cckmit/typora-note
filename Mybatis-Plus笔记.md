@@ -246,6 +246,12 @@ public class MybatisPlusConfig {
     <artifactId>spring-webmvc</artifactId>
     <version>5.0.8.RELEASE</version>
   </dependency>
+       <!-- 文件上传 -->
+      <dependency>
+		<groupId>commons-fileupload</groupId>
+		<artifactId>commons-fileupload</artifactId>
+		<version>1.3.2</version>
+	</dependency>
   </dependencies>
   <!-- 设置JDK编译版本 -->
   <build>
