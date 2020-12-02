@@ -1,6 +1,6 @@
-redis笔记
+# redis笔记
 
-## 1.linux安装
+ ## 1.linux安装
 
 1、 下载最新版安装包https://redis.io
 
@@ -249,3 +249,103 @@ sentinel monitor myredis 127.0.0.1 6379 1
 **（3）数据预热**
 
 数据加热的含义就是在正式部署之前，我先把可能的数据先预先访问一遍，这样部分可能大量访问的数据就会加载到缓存中。在即将发生大并发访问前手动触发加载缓存不同的key，设置不同的过期时间，让缓存失效的时间点尽量均匀。
+
+# Spring整合Redis
+
+```xml
+  <!--spring整合Redis的jar包-->
+      <dependency>
+        <groupId>org.springframework.data</groupId>
+        <artifactId>spring-data-redis</artifactId>
+        <version>2.4.0</version>
+      </dependency>
+      <!--java连接Redis的jar包-->
+      <dependency>
+        <groupId>redis.clients</groupId>
+        <artifactId>jedis</artifactId>
+        <version>3.3.0</version>
+      </dependency>
+```
+
+```properties
+#redis主机号
+redis.hostname=127.0.0.1
+#redis端口号
+redis.port=6379
+#redis密码，可不填
+redis.password=
+#redis超时时间，默认2000
+redis.timeout=2000
+        
+#redis数据源连接池
+#redis检测是否连接成功
+redis.testOnBorrow=true
+#redis最大连接数
+redis.pool.maxActive=600
+#redis最大空闲数
+redis.pool.maxIdle=300
+#redis最大等待时间
+redis.pool.maxWait=3000
+```
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="
+        http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/context
+        http://www.springframework.org/schema/context/spring-context-4.0.xsd">
+
+    <context:property-placeholder location="classpath:conf/redis.properties"/>
+
+    <!--reids连接池-->
+    <bean id="poolConfig" class="redis.clients.jedis.JedisPoolConfig">
+        <property name="maxIdle" value="${redis.pool.maxIdle}"></property>
+        <property name="maxTotal" value="${redis.pool.maxActive}"></property>
+        <property name="maxWaitMillis" value="${redis.pool.maxWait}"></property>
+        <property name="testOnBorrow" value="${redis.testOnBorrow}"></property>
+    </bean>
+
+    <!-- Spring-redis连接池管理工厂 -->
+    <bean id="jedisConnectionFactory" class="org.springframework.data.redis.connection.jedis.JedisConnectionFactory">
+        <!-- IP地址 -->
+        <property name="hostName" value="${redis.host}" />
+        <!-- 端口号 -->
+        <property name="port" value="${redis.port}" />
+        <property name="password" value="${redis.password}" />
+        <!-- 超时时间 默认2000-->
+        <property name="timeout" value="${redis.timeout}" />
+        <!-- 连接池配置引用 -->
+        <property name="poolConfig" ref="poolConfig" />
+    </bean>
+
+    <!-- redis template definition -->
+    <bean id="redisTemplate" class="org.springframework.data.redis.core.RedisTemplate">
+        <property name="connectionFactory" ref="jedisConnectionFactory" />
+        <!--序列化-->
+        <property name="keySerializer">
+            <bean class="org.springframework.data.redis.serializer.StringRedisSerializer" />
+        </property>
+        <!--默认jdk序列化，json有问题-->
+        <property name="valueSerializer">
+            <bean class="org.springframework.data.redis.serializer.JdkSerializationRedisSerializer" />
+        </property>
+        <property name="hashKeySerializer">
+            <bean class="org.springframework.data.redis.serializer.StringRedisSerializer" />
+        </property>
+        <property name="hashValueSerializer">
+            <bean class="org.springframework.data.redis.serializer.JdkSerializationRedisSerializer" />
+        </property>
+        <!--开启事务  -->
+        <property name="enableTransactionSupport" value="true"></property>
+    </bean>
+
+    <!--自定义redis工具类,在需要缓存的地方注入此类  -->
+<!--    <bean id="redisService" class="com.cff.springwork.redis.service.RedisService">
+        <property name="redisTemplate" ref="redisTemplate" />
+    </bean>-->
+```
+
