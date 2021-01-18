@@ -1,4 +1,51 @@
-# docker的使用
+# [ Ubuntu ]docker的使用
+
+```shell
+1.首先打开终端窗口输入命令，更新包信息：
+$ sudo apt-get update
+2.安装CA证书，支持Https:
+$ sudo apt-get install \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    software-properties-common
+
+3.添加一个官方的GPG密钥：
+$ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+4.验证密钥指纹：
+$ sudo apt-key fingerprint 0EBFCD88
+
+输出的是： 9DC8 5822 9FC7 DD38 854A E2D8 8D81 803C 0EBF CD88  即正确。
+
+5.下载amd64的官方最新稳定版Docker：
+$ sudo add-apt-repository \
+   "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+   $(lsb_release -cs) \
+   stable"
+ 
+6.再次更新包信息：
+$ sudo apt-get update
+
+7.安装Docker CE版本：
+$ sudo apt-get install docker-ce
+
+8.创建一个docker组，防止每次都要用sudo命令执行docker命令：
+$  sudo groupadd docker
+
+9.将该用户加入到组内：
+$ sudo gpasswd -a ${USER} docker
+
+
+10.重启docker：
+$ sudo service docker restart
+
+11.切换当前会话到新的组：
+$ newgrp - docker
+```
+
+
+
+# [centos7]docker的使用
 
 ### 1.安装docker
 
