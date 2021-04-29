@@ -25,6 +25,10 @@ tm 'test.txt'
 git commit  -m  "删除"  #提交并添加备注
 $ git push -u origin1 master #正常推送到远程
 $ git push -f origin1 master #强制推送到远程
+#放弃本地项目，强制更新
+git fetch --all
+git reset --hard origin/master
+git pull //可以省略
 ```
 
 4.使用命令行clone远程项目

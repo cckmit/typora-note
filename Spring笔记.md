@@ -237,6 +237,8 @@ private String name;
 
 ## @Configuration注解
 
+> @Configuration、@Bean、@Import的作用
+
 ```java
 /**
 *@Configuration，spring中的新注解
@@ -248,14 +250,28 @@ private String name;
 *我们使用此注解就等同于在xmL中配置了:
 *<context : component-scan base-package="com.itheimo"></context :component-scan>
 */
+
 /**
 *@Bean
 *作用:用于把当前方法的返回值作为bean对象存入spring的ioc容器中属性:
 *name:用于指定bean的id。当不写时，默认值是当前方法的名称细节:
 *当我们使用注解配置方法时，如果方法有参数,spring框架会去容器中查找有没有可用的bean对象。查找的方式和@Autowired主解的作用是一样的
+
+@Import
+作用:用于导入其他的配置类
+属性:
+vaLue:用于指定其他配置类的字节码。
+当我们使用工mport的注解之后，有Import往解的类就父配置类，而导入的都是子配置类
+
+@PropertySource
+作用:用于指定properties文件的位置属性:
+vaLue:指定文件的名称和路径。
+关键字:cLasspath，表示类路径下
 */
 @Configuration
 @ComponentScan(basePackages = {"com.service","com.dao"}) //只有一个包时可省略{}
+@Import(类名) //使用这个注解可以省略@Configuration注解，通常作用于主配置类上
+@PropertySource("classpath:jdbc.properties")
 public class ConfigurationTest {}
 
 ```
