@@ -67,6 +67,36 @@ v-on:click="add" =  @click = “add”
 
 ![1601194978268](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\1601194978268.png)
 
+### 监听器：v-watch的用法
+
+ Vue 提供了一种更通用的方式来观察和响应 Vue 实例上的数据变动：**侦听属性**。当你有一些数据需要随着其它数据变动而变动时，你很容易滥用 `watch`——特别是如果你之前使用过 AngularJS。然而，通常更好的做法是使用计算属性而不是命令式的 `watch` 回调。细想一下这个例子： 
+
+```html
+<div id="demo">{{ fullName }}</div>
+ <script >
+var vm = new Vue({
+  el: '#demo',
+  data: {
+    firstName: 'Foo',
+    lastName: 'Bar',
+    fullName: 'Foo Bar'
+  },
+  watch: {
+    firstName: function (val) {
+      this.fullName = val + ' ' + this.lastName
+    },
+    lastName: function (val) {
+      this.fullName = this.firstName + ' ' + val
+    }
+  }
+})
+</script>
+```
+
+v-on是监听事件
+
+watch是监听值的变化
+
 ### 条件判断：v-if,v-else-if,v-else的用法
 
 ```html
@@ -306,7 +336,7 @@ v-html可以把数据以html风格展示
 
 ```html
 <div id = "app3">
-    <a v-for="url"></a>
+    <a v-html="url"></a>
 </div>
 <script>
     const app3 = new Vue({  //modelview
