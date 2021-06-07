@@ -1,6 +1,6 @@
 ﻿zuul:
  routes:
    api-system: #会员服务网关配置
-     path: /api-system/**   #访问只要是/api-system/ 开头的直接转发到member-service服务
+     path: /user/**   #访问只要是/api-system/ 开头的直接转发到member-service服务
      #服务名
      serviceId: service-consumer
