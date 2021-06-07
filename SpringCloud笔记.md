@@ -309,34 +309,50 @@ eureka.client.eureka-server-total-connections-per-host = 50
 
 ```yml
 server:
-  port: 3344
-  
+  port: 8004
+
+eureka:
+  instance:
+    instance-id: 127.0.0.1:${server.port}
+    prefer-ip-address: true
+  client:
+    serviceUrl:
+      defaultZone: http://127.0.0.1:8003/eureka/
+
 spring:
   application:
-     name: cloud-config-center #注册进Eureka服务器的服务名称
-    cloud:
-     config:
-       server:
-         git:
-           skipSslValidation: true # 跳过ssl认证
-           uri: https://github.com/wang-so/springcloud-config.git  #GitHub上复制的项目地址
-           default-label: master   #读取分支
-           search-paths: - springcloud-config #搜索目录      
-#        svn:
-#          uri: https://wang-so/svn/winjay/demo/Config
-#          username: winjay
-#          password: 123456
-#          default-label: produce
-#  profiles:
-#    active: subversion
-#服务注册到 eureka地址
-eureka:
-  client:
-     service-url:
-       defaultZone: http://eureka7001.com:7001/eureka
+    name: service-configserver
+  cloud:
+    config:
+      server:
+        # 这里实用git协议从github、码云获取配置文件，也可以换成svn协议
+           git:
+                  uri: https://github.com/winjayok/typora-note
+                  # default-label 指定默认的分支名称
+                  default-label: master
+                  # search-paths 如果配置文件不是放在分支根目录，则实用该属性指向文件夹，如下例代表：在master根目录的dev文件夹下查找配置文件
+                  search-paths: dev
+                  username: ***
+                  password: ***
+                  
+#svn 配置
+#spring:
+  #application:
+    #name: service-configserver
+  #cloud:
+    #config:
+      #server:
+        #svn:
+          #uri: https://120.76.41.162:8002/svn/tl_products/e_oa/07Develop/TlOa/Config
+          #username: chenmr
+          #password: 6WFh4x7b
+          #default-label: produce
+  #profiles:
+    #active: subversion
+
 ```
 
-
+**配置可能出现的问题**：客户端的配置文件必须为boostrap.yml（properties），因为boostrap优先于application，否则将会读取远程配置文件失败！
 
 ## 3. Zuul /Gateway—— 服务网关
 
@@ -358,6 +374,9 @@ eureka:
 > - path：“/**”表示的是拦截对应域名下的所有请求，也可以自行设置请求路径。
 
 ```java
+ /*
+ * 解决多个服务之间的跨域问题
+ * */
 @Bean
 	public FilterRegistrationBean corsFilter() {
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -373,7 +392,53 @@ eureka:
 	}
 ```
 
-### （2）
+### （2）实现自定义的Filter
+
+> filterOrder():使用返回值设定Filter执行次序。
+>
+> filterType():使用返回值摄动Filter类型，可以是pre，route，post，error类型。
+>
+> shouldFilter():使用返回值设定该Filter是否执行，可以作为开关使用。
+>
+> run():Filter里面的核心执行逻辑，业务处理在此编写。
+
+```java
+@Component
+public class MyFilter extends ZuulFilter {
+    @Override
+    public String filterType() {
+        return "pre";
+    }
+
+    @Override
+    public int filterOrder() {
+        return 0;
+    }
+
+    @Override
+    public boolean shouldFilter() {
+        return true;
+    }
+
+    @Override
+    public Object run() throws ZuulException {
+        return null;
+    }
+}
+
+```
+
+### （3）yml配置
+
+```yml
+zuul:
+ routes:
+   api-system: #会员服务网关配置
+     path: /api-system/**   #访问只要是/api-system/ 开头的直接转发到service-consumer服务
+     serviceId: service-consumer  #服务名
+```
+
+
 
 ## 4.Feign —— 负载均衡（服务调用）
 
