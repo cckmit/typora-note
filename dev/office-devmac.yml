@@ -1,0 +1,45 @@
+﻿files:
+  suffix:
+    Document: .doc,.docx,.docm,.dot,.dotx,.dotm,.odt,.fodt,.ott,.rtf,.txt,.html,.htm,.mht,.pdf,.djvu,.fb2,.epub,.xps
+    Spreadsheet: .xls,.xlsx,.xlsm,.xlt,.xltx,.xltm,.ods,.fods,.ots,.csv
+    Presentation: .pps,.ppsx,.ppsm,.ppt,.pptx,.pptm,.pot,.potx,.potm,.odp,.fodp,.otp
+    Image: .jpg,.jpeg,.gif,.bmp,.png
+    Compressed: .rar,.zip,.7z
+    Html: .html,.htm,.pdf
+  docservice:
+    viewed-docs: .pdf|.djvu|.xps
+    edited-docs: .docx|.xlsx|.csv|.pptx|.txt
+    convert-docs: .docm|.dotx|.dotm|.dot|.doc|.odt|.fodt|.ott|.xlsm|.xltx|.xltm|.xlt|.xls|.ods|.fods|.ots|.pptm|.ppt|.ppsx|.ppsm|.pps|.potx|.potm|.pot|.odp|.fodp|.otp|.rtf|.mht|.html|.htm|.epub
+    timeout: 120000
+    url:
+      converter:  http://192.168.99.100:32780/ConvertService.ashx
+      tempstorage: http://192.168.99.100:32780/ResourceService.ashx
+      api: http://192.168.99.100:32780/web-apps/apps/api/documents/api.js
+      preloader: http://192.168.99.100:32780/web-apps/apps/api/documents/cache-scripts.html
+    header: Authorization
+
+office:
+  callbackUrl: http://192.168.13.187:1010/operat-api/online/save
+  address: 广东省广州市天河区龙口中路龙威广场
+  info: 广东康浩律师事务所
+  logo:
+  mail: 1120806890@qq.com
+  name: 广东康浩律师事务所
+  www: http://www.kanghaolaw.com/
+
+filedir:
+  base: E:\config\TempFile\
+  attachment: gztlAttachment
+  pdfattachment: gztlAttachmentpdf
+  waterattachment: gztlAttachmentWaterpdf
+  pdftemplate: pdf
+  download: download
+  downloadpath: http://127.0.0.1:1010/operatui-api/gztlAttachment/
+  downloadsite: http://127.0.0.1:1010
+
+jodconverter: 
+  local: 
+    enabled: true
+    office-home: C:\Program Files (x86)\OpenOffice 4\program
+    max-tasks-per-process: 10
+    port-numbers: 8100
