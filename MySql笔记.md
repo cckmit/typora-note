@@ -25,4 +25,7 @@ master.jdbc.url=jdbc:mysql://112.126.84.3:3306/outreach_platforme&rewriteBatched
   select * from t_user where name like concat('%', #{name}, '%')
   ```
 
-  
+
+## 3.解决MySql启动报错问题
+
+![image-20210716090528861](G:\markdown\typora-user-images\image-20210716090528861.png)

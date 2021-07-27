@@ -690,3 +690,12 @@ public class MyBatisGenertor {
         autoGenerator.execute(); //执行
 ```
 
+## 六、自定义条件
+
+```xml
+<where>
+    ${ew.sqlSegment}
+</where>
+主要是如果使用${ew.customSqlSegment}，上面那个<where></where>标签是不用加滴 
+```
+

@@ -1,5 +1,10 @@
 # Git的使用
 
+### Git安装及配置
+
+git安装及配置：![img](G:\markdown\typora-user-images\8LDO48C$8@[GWU0353$FOVS.png)https://zhuanlan.zhihu.com/p/123195804
+git代码拉取及上传配置：https://blog.csdn.net/weixin_45272449/article/details/106358069
+
 ### 使用ssh方式将本地项目推送到远程
 
 1.生成ssh公钥
