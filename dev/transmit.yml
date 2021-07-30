@@ -1,0 +1,37 @@
+﻿ if (treeNode.checked) {
+            /* 勾选 */
+
+            var value = $("#onDepart").val();
+            var hid_value = $("#hid_departId").val();
+
+            if (("," + value + ",").indexOf(("," + treeNode.name + ",")) == -1) {
+                if (value.length == 0) {
+                    value = treeNode.name;
+                } else {
+                    value += "," + treeNode.name;
+                }
+            }
+
+            if (("," + hid_value + ",").indexOf(("," + treeNode.id + ",")) == -1) {
+                if (hid_value.length == 0) {
+                    hid_value = treeNode.id;
+                } else {
+                    hid_value += "," + treeNode.id;
+                }
+            }
+
+            $("#onDepart").val(value);
+            $("#hid_departId").val(hid_value);
+        } else {
+            /* 取消勾选 */
+
+            var value = $("#onDepart").val();
+            var hid_value = $("#hid_departId").val();
+
+            value = value.replace("," + treeNode.name, "").replace(treeNode.name + ",", "").replace(treeNode.name, "");
+
+            hid_value = hid_value.replace("," + treeNode.id, "").replace(treeNode.id + ",", "").replace(treeNode.id, "");
+
+            $("#onDepart").val(value);
+            $("#hid_departId").val(hid_value);
+        }
