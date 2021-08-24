@@ -2217,3 +2217,561 @@ declaredMethod.invoke(o1);
 ```
 
 ![image-20210712202925028](G:\markdown\typora-user-images\image-20210712202925028.png)
+
+## 5.多线程（Thread和Runable）
+
+### 5.1多线程常用方法
+
+```java
+String getName()　　返回该线程的名称。
+
+void setName(String name)　　改变线程名称，使之与参数 name 相同。
+
+int getPriority() 　　返回当前线程的优先级。
+
+void setPriority(int newPriority) 　　更改当前线程的优先级。
+
+boolean isDaemon() 　　测试当前线程是否为守护线程。
+
+void setDaemon(boolean on)　　将当前线程标记为守护线程或用户线程。
+
+static void sleep(long millis) 暂停后面线程执行的时间，单位：毫秒
+    *(在@test方法中重写run()方法使用sleep()时，当前线程将阻塞，直到@test方法中有join()方法才会将其唤醒)
+    
+static void yield()　线程让步，暂停当前正在执行的线程对象，并执行其他线程，之后仍会继续执行当前线程。
+    
+void interrupt()　　中断当前线程。
+
+void join()　线程插队，等待当前线程执行完才开始执行其他线程。
+    （如在线程a中执行线程b的join方法，则线程a阻塞，直到线程b执行完才开始执行线程a）
+
+void run()	启动线程对象方法，调用此方法仍为单线程执行
+
+void start()  启动多线程
+    
+boolean isAlive() 判断线程是否正在存活（正在执行）
+    
+static native Thread currentThread() 返回当前执行的Thread线程对象
+```
+
+
+
+### 5.2 继承Thread类
+
+> 通过继承Thread类来创建多线程，重写run方法，然后调用start方法来启动多线程
+
+```java
+class MyThread extends Thread{
+    @Override
+    public void run() {
+        for (int i = 0; i < 5; i++) {
+            System.out.println(Thread.currentThread().getName()+ "===="+i );
+        }
+    }
+}
+public class ThreadTest {
+    @Test
+    public void test(){
+        new MyThread().start();
+        for (int i = 0; i < 5; i++) {
+            System.out.println(Thread.currentThread().getName()+ "===="+i );
+        }
+    }
+}
+//控制台输出：
+/**
+main====0
+main====1
+main====2
+main====3
+Thread-0====0
+main====4
+Thread-0====1
+Thread-0====2
+Thread-0====3
+Thread-0====4
+*/
+```
+
+### 5.3实现Runnable接口
+
+> 实现Runnable接口来创建线程，仍然通过Thread类来调用start方法启动线程，Thread源码如下：
+>
+> ```java
+> private Runnable target;
+> @Override
+> public void run() {
+>     if (target != null) {
+>         target.run(); 
+>     }
+> }
+> ```
+
+```java
+public class MyRun implements Runnable{
+    @Override
+    public void run() {
+        for (int i = 0; i < 10; i++) {
+            System.out.println(Thread.currentThread().getName()+":"+i);
+        }
+    } 
+}
+
+@test
+public void test(){
+    MyRun run = new MyRun(); //创建runnable对象
+    Thread thread1 = new Thread(run,"线程一"); //使用Thread类调用start方法
+    Thread thread2 = new Thread(run,"线程二");
+    thread1.start();
+    thread2.start();
+}
+```
+
+
+
+### 5.4 多线程常见问题
+
+#### 5.4.1：调用start方法和调用run方法的区别
+
+> 调用start方法是为了启动多线程，让多个线程并发执行；
+>
+> 调用run方法则相当于调用对象方法，会按照执行顺序依次执行，此时的线程仍为主线程main
+
+```java
+  @Test
+    public void test(){
+        new MyThread().start();
+        new MyThread().run();
+    }
+//调用start方法输出结果在上方，调用run方法输出控制台输出如下：
+/**
+main====0
+main====1
+main====2
+main====3
+main====4
+main====0
+main====1
+main====2
+main====3
+main====4
+*/
+```
+
+#### 5.4.2：能否再次调用已经开始的线程对象
+
+> 不能。因为线程默认状态为0,线程名为Thread-0，当启动线程的时候状态则不为零，再次启动同一个对象的线程时，内部会先判断是否已经启动过，若是则报错IllegalThreadStateException
+
+```java
+//控制台输出
+/*
+Thread-0====0
+Thread-0====1
+Thread-0====2
+Thread-0====3
+Thread-0====4
+java.lang.IllegalThreadStateException
+	at java.lang.Thread.start(Thread.java:708)
+	at thread.ThreadTest.test(ThreadTest.java:12)
+
+Process finished with exit code -1
+```
+
+> 如果想重复调用线程的run方法，可以重新创建一个线程对象，此时的线程名为Thread-1
+
+```java
+	@Test
+   public void test(){
+       MyThread myThread = new MyThread();
+        myThread.start();
+        MyThread myThread1 = new MyThread();
+        myThread1.start();
+    }
+//控制台输出：
+/*
+Thread-0====0
+Thread-1====0
+Thread-0====1
+Thread-1====1
+Thread-0====2
+Thread-0====3
+Thread-0====4
+Thread-1====2
+Thread-1====3
+Thread-1====4
+```
+
+**使用匿名类Thread**
+
+```java
+@Test
+public void test1(){
+   new Thread(){
+       @Override
+       public void run() {
+           for (int i = 0; i < 5; i++) {
+               System.out.println(Thread.currentThread().getName()+ "===="+i );
+           }
+       }
+   }.start();
+}
+```
+
+### 5.5 线程调度优先级Priority
+
+**注意：**<b style="color:red">设置线程优先度高就是抢占低优先级线程cpu的执行权。但只是高概率优先执行，并不意味着只有高优先级线程的会优先执行 </b>
+
+> ```
+> setPriority(int newPriority) 设置线程优先级
+> getPriority() 获取当前线程的优先级，默认为5
+> MAX_PRIORITY = 10 线程中最高优先级
+> NORM_PRIORITY = 5 线程中默认的优先级
+> MIN_PRIORITY = 1 线程中最低优先级
+> ```
+
+```java
+   @Override
+    public void run() {
+        for (int i = 0; i < 3; i++) {
+            System.out.println(Thread.currentThread().getName()+ "==当前线程优先级	 											   为："+Thread.currentThread().getPriority()+"=="+i );
+        }
+    }
+//控制台输出：
+/*
+Thread-0==当前线程优先级为：5==0
+Thread-0==当前线程优先级为：5==1
+Thread-0==当前线程优先级为：5==2
+```
+
+### 5.6 同步监视器（锁）(案例）
+
+#### 5.6.1 synchronized和ReentrantLock
+
+> 当一个方法体或方法块中被synchronized修饰时就是同步方法，当多个线程一起进入同步方法时，假如线程a先进入，会携带着一个监视器（加锁），其他线程只能等待线程a释放锁才能进入同步方法，每个线程都会携带一个锁，防止出现线程安全问题。
+
+- 使用synchronized同步方法块
+
+  ```java
+  	@Override
+      public void run() { 
+          synchronized (Object.class){
+  				//执行的代码块	
+              }
+       }
+  ```
+
+- 使用synchronized同步方法体
+
+  ```java
+  @Override
+      public synchronized void run() {
+         //执行方法
+      }
+  ```
+
+- 通过ReentrantLock实现Lock方法加锁
+
+  ```java
+  	@Override
+      public void run() {
+          while (true){
+              lock.lock();//加锁
+              //执行方法
+              lock.unlock();  //释放锁
+          }
+      }
+  ```
+
+  > synchronized及ReentrantLock二者区别：
+  >
+  > - `ReentrantLock`显式获得、释放锁，`synchronized`隐式获得释放锁
+  >
+  > - `ReentrantLock`是`API`级别的，`synchronized`是`JVM`级别的
+
+#### 5.6.2 加锁案例（窗口卖票）
+
+> **陈述：利用多线程的思想模拟三个窗口售票员卖20张票的功能：**
+>
+> 火车站要售票，我们模拟火车站的售票过程。假设正值春运时期，西安到兰州的动车票只有 20 张（西安火车站窗口只能卖30张票）。我们采用线程对象来模拟火车站的售票窗口，实现多个窗口同时卖火车票，
+
+> **解析：**
+>
+> 是否数据共享：是，票数供三个售票窗口同时使用，不能出现售卖后数量不变的情况；
+>
+> 是否要加锁：需要加锁，售票时可能会出现多个窗口卖同一张票的清空，涉及到线程安全问题，因此需要加锁；
+
+- 方法一：使用Thread类实现
+
+  ```java
+  public class ThreadTest2 {
+  
+      public static void main(String[] args) {
+          Mythread1 thread1 = new Mythread1("窗口一");
+          Mythread1 thread2 = new Mythread1("窗口二");
+          Mythread1 thread3 = new Mythread1("窗口三");
+          thread1.start();
+          thread2.start();
+          thread3.start();
+      }
+  }
+  
+  class Mythread1 extends  Thread{
+      private static int ticket = 20; //Thread类必须加static关键字才能实现数据共享
+      @Override
+      public void run() {
+          while (true){
+              synchronized (Object.class){ //使用同步方法块
+                  if (ticket > 0) {
+                      ticket -- ;
+                      try {
+                          Thread.sleep(1000);
+                      } catch (InterruptedException e) {
+                          e.printStackTrace();
+                      }
+                      System.out.println(Thread.currentThread().getName()+"售票一张，票数剩余"+ticket);
+  
+                  }else {
+                      break;
+                  }
+              }
+          }
+      }
+      public Mythread1(String name) {
+          super(name);
+      }
+  }
+  //控制台输出结果：
+  /**
+  窗口一售票一张，票数剩余19
+  窗口二售票一张，票数剩余18
+  窗口一售票一张，票数剩余17
+  窗口一售票一张，票数剩余16
+  窗口三售票一张，票数剩余15
+  ……
+  窗口三售票一张，票数剩余0
+  ```
+
+- 方法一：使用Runnable接口实现
+
+  ```java
+  public class RunableTest {
+  
+      public static void main(String args[]) {
+          MyRun run = new MyRun();
+          Thread thread1 = new Thread(run,"窗口一");
+          Thread thread2 = new Thread(run,"窗口二");
+          Thread thread3 = new Thread(run,"窗口三");
+          thread1.start();
+          thread2.start();
+          thread3.start();
+      }
+  }
+  
+  class MyRun implements Runnable{
+      private int ticket = 20;
+      
+     @Override
+          public void run() {
+          while (true){
+              synchronized (this){ //使用同步方法块
+                  if (ticket > 0) {
+                      ticket -- ;
+                      try {
+                          Thread.sleep(1000);
+                      } catch (InterruptedException e) {
+                          e.printStackTrace();
+                      }
+                      System.out.println(Thread.currentThread().getName()+"售票一张，票数剩余"+ticket);
+  
+                  }else {
+                      break;
+                  }
+              }
+          }
+      }
+  //控制台输出结果：
+  /**
+  窗口一售票一张，票数剩余19
+  窗口二售票一张，票数剩余18
+  窗口一售票一张，票数剩余17
+  窗口一售票一张，票数剩余16
+  窗口三售票一张，票数剩余15
+  ……
+  窗口三售票一张，票数剩余0
+  ```
+
+#### 5.6.3 Thread和Runnable使用的注意地方
+
+> 1.在使用synchronized一定要注意放的位置，不能放多，也不能放少，否则容易变成单线程或者线程死锁，因此更加推荐使用同步代码块来加锁，而使用同步方法体则需要注意
+>
+> ```java
+> synchronized(this){
+>         while (true){ //当线程携带锁进入此方法时，由于synchronized在while之前，因此线程进入后会不断判断进入while方法体中，此时其他线程会一直等待其释放锁，因此当票卖完了也始终时同一个窗口在执行。
+>                 if (ticket > 0) {
+>                     ticket -- ;
+>                     System.out.println(Thread.currentThread().getName()+"售票一张，票数剩余"+ticket);
+>                 }else {
+>                     break;
+>                 }
+>             }
+>         }
+> //控制台输出结果： 始终都是一个窗口，此时为单线程执行
+> /**
+> 窗口一售票一张，票数剩余19
+> 窗口一售票一张，票数剩余18
+> 窗口一售票一张，票数剩余17
+> 窗口一售票一张，票数剩余16
+> ……
+> 窗口一售票一张，票数剩余0
+> ```
+>
+> 2.Thread类使用synchronized时，同步监视器（锁）不能使用this,因为没个线程的启动都需要创建新的线程对象，同步监视器必须要同一个对象才能够加锁（解决线程安全问题），因此可使用当前父类或者Object作为锁即可
+>
+> ```java
+> class Mythread2 extends  Thread{
+> 
+>     private static int ticket = 20;
+> 
+>     @Override
+>     public void run() {
+>         while (true){
+>             synchronized (this){ //Thread类中使用this，this为当前新建线程的对象thread1/thread2/thread3
+>                 if (ticket > 0) {
+>                     ticket -- ;
+>                     System.out.println(Thread.currentThread().getName()+"售票一张，票数剩余"+ticket);
+>                 }else {
+>                     break;
+>                 }
+>             }
+>         }
+>     }
+> }
+> //控制台输出结果： 
+> /**
+> 窗口一售票一张，票数剩余17
+> 窗口三售票一张，票数剩余17
+> 窗口二售票一张，票数剩余17
+> 窗口三售票一张，票数剩余15
+> ……
+> ```
+
+### 5.7 线程通信(案例）
+
+#### 5.7.1 wait()，notify()/notifyAll()的使用
+
+> 1、wait()、notify/notifyAll() 方法是Object的本地final方法，无法被重写。
+>
+> 2、wait()使当前线程阻塞，前提是 必须先获得锁，一般配合synchronized 关键字使用，即，一般在synchronized 同步代码块里使用 wait()、notify/notifyAll() 方法。
+>
+> 3、 由于 wait()、notify/notifyAll() 在synchronized 代码块执行，说明当前线程一定是获取了锁的。
+>
+> 当线程执行wait()方法时候，会释放当前的锁，然后让出CPU，进入等待状态。
+>
+> 只有当 notify/notifyAll() 被执行时候，才会唤醒一个或多个正处于等待状态的线程，然后继续往下执行，直到执行完synchronized 代码块的代码或是中途遇到wait() ，再次释放锁。
+>
+> 状态：wait()：运行-->阻塞，notify/notifyAll() :阻塞-->就绪
+
+### 5.8 join、yield方法的使用
+
+#### 5.8.1  join()的使用（线程插队）
+
+> 等待当前线程执行完才开始执行其他线程。如在线程a中执行线程b的join方法，则线程a阻塞，直到线程b执行完才开始执行线程a
+>
+> 状态：就绪-->运行
+>
+> ```java
+>  public static void main(String[] args) throws InterruptedException {
+>         MyThread t1 = new MyThread("线程一");
+>         Thread.currentThread().setName("主线程");
+>         t1.start();
+>         for (int i = 0; i < 5; i++) {
+>             System.out.println(Thread.currentThread().getName()+"=="+i );
+>             if(i==2){
+>                 //当i=2时，直接让线程一先跑，知道线程一结束后才执行主线程
+>                 try {
+>                     t1.join();
+>                 } catch (InterruptedException e) {
+>                     e.printStackTrace();
+>                 }
+>             }
+>         }
+>     }
+> class MyThread extends Thread{
+>     @Override
+>     public void run() {
+>         for (int i = 0; i < 5; i++) {
+>             System.out.println(Thread.currentThread().getName()+"=="+i );
+>         }
+>     }
+>     public MyThread(String name){
+>         super(name);
+>     }
+> 
+> }
+> //控制台输出结果： 
+> /**
+> 主线程==0
+> 主线程==1
+> 线程一==0
+> 主线程==2  **当i=2时，直接让线程一先跑，知道线程一结束后才执行主线程
+> 线程一==1
+> 线程一==2
+> 线程一==3
+> 线程一==4
+> 主线程==3
+> 主线程==4
+> ```
+
+#### 5.8.2  yield()的使用（线程让步）
+
+> 使用：yield()是Object的静态方法，因此可以直接使用
+>
+> 概念：暂时中断当前正在执行的线程对象，并执行其他线程，之后仍会继续随机执行当前线程，不需要唤醒。
+>
+> 状态：运行 -->就绪
+>
+> ```java
+> public static void main(String[] args) throws InterruptedException {
+>         MyThread t1 = new MyThread("线程一");
+>         Thread.currentThread().setName("主线程");
+>         t1.start();
+>         for (int i = 0; i < 5; i++) {
+>             System.out.println(Thread.currentThread().getName()+"=="+i );
+>             if(i%2==0){
+>                 //当i=2时，把当前线程状态改为就绪，下一个线程执行
+>                 yield();
+>             }
+>         }
+>     }
+> class MyThread extends Thread{
+>     @Override
+>     public void run() {
+>         for (int i = 0; i < 5; i++) {
+>             System.out.println(Thread.currentThread().getName()+"=="+i );
+>         }
+>     }
+>     public MyThread(String name){
+>         super(name);
+>     }
+> 
+> }
+> //控制台输出结果： 
+> /**
+> 主线程==0
+> 主线程==1
+> 主线程==2 **当i=2时，把当前线程状态改为就绪，下一个线程执行
+> 线程一==0
+> 主线程==3
+> 线程一==1
+> 线程一==2
+> 主线程==4
+> 线程一==3
+> 线程一==4
+> ```
+
+#### 5.8.3  join()和yield()的区别
+
+> **yield()方法：**暂停当前正在执行的线程对象，并执行其他线程。
+>
+> **jion()方法：**线程实例的join()方法可以使得一个线程在另一个线程结束后再执行，即也就是说使得**当前线程可以阻塞其他线程执行；**
+
