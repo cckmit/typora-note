@@ -3,8 +3,9 @@
 ```shell
 #查看所有进程
 netstat   -nultp
-#查看所有进程明细
+#查看所有java进程明细
 ps -ef|grep java
+ps grep|gerp java
 #杀死指定进程
 kill -9 -port
 

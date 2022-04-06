@@ -104,3 +104,43 @@ git push origin :branch_remote_name
 git branch -r -d branch_remote_name
 ```
 
+## git 通用添加忽略提交名单
+
+先在根目录新增一个.gitignore文件
+
+/target/ ：过滤文件设置，表示过滤这个文件夹
+*.mdb  ，*.ldb  ，*.sln 表示过滤某种类型的文件
+/mtk/do.c ，/mtk/if.h  表示指定过滤某个文件下具体文件
+ !*.c , !/dir/subdir/     !开头表示不过滤
+ *.[oa]    支持通配符：过滤repo中所有以.o或者.a为扩展名的文件
+
+其他的一些过滤条件
+
+  \* ？：代表任意的一个字符
+  \* ＊：代表任意数目的字符
+  \* {!ab}：必须不是此类型
+  \* {ab,bb,cx}：代表ab,bb,cx中任一类型即可
+  \* [abc]：代表a,b,c中任一字符即可
+
+  \* [ ^abc]：代表必须不是a,b,c中任一字符
+
+  由于git不会加入空目录，所以下面做法会导致tmp不会存在 tmp/*       //忽略tmp文件夹所有文件
+
+  改下方法，在tmp下也加一个.gitignore,内容为
+            *
+            !.gitignore
+
+```shell
+##ignore this file##
+*/target/
+*/src/test/
+*.idea
+.classpath
+.project
+.setting
+*.iml
+*.sql
+*.bak
+ 
+```
+
