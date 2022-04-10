@@ -349,3 +349,96 @@ redis.pool.maxWait=3000
     </bean>-->
 ```
 
+# Springboot整合Redis
+
+```xml
+ <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-redis</artifactId>      
+ </dependency>
+```
+
+```yml
+spring:
+  redis:
+    host: 127.0.0.1
+    port: 6379
+    password: 123456
+    # jedis连接池配置
+    jedis:
+      pool:
+        #连接池最大连接数，若为-1则表示没有任何限制
+        max-active: 8
+        #连接池最大阻塞等待时间，若为-1则表示没有任何限制
+        max-wait: -1
+        #连接池中的最大空闲连接
+        max-idle: 500
+        min-idle: 0
+    lettuce:
+      shutdown-timeout: 0
+```
+
+```java
+/**
+ * redis序列化配置
+ * @PackageName: com.example.config
+ * @ClassName: redisConfig
+ * @Description: redisConfig
+ * @Author: Winjay
+ * @Date: 2022-04-10 17:12:24
+ */
+@Configuration
+public class RedisConfig {
+    /**
+     * redisTemplate 序列化使用的jdkSerializeable, 存储二进制字节码, 所以自定义序列化类
+     * @param redisConnectionFactory
+     * @return
+     */
+    @Bean(name = "redisTemplate")
+    public RedisTemplate<Object, Object> redisTemplate(RedisConnectionFactory redisConnectionFactory) {
+        RedisTemplate<Object, Object> template = new RedisTemplate<>();
+        template.setConnectionFactory(redisConnectionFactory);
+        /**
+         * 配置具体的序列化方式
+         */
+
+        //JSON序列化
+        Jackson2JsonRedisSerializer jackson2JsonRedisSerializer =
+                new Jackson2JsonRedisSerializer(Object.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.configure(MapperFeature.USE_ANNOTATIONS, false);
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        objectMapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+        // 此项必须配置，否则会报java.lang.ClassCastException: java.util.LinkedHashMap cannot be cast to XXX
+        objectMapper.enableDefaultTyping(ObjectMapper.DefaultTyping.NON_FINAL, JsonTypeInfo.As.PROPERTY);
+        objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        jackson2JsonRedisSerializer.setObjectMapper(objectMapper);
+        //String序列化
+        StringRedisSerializer stringRedisSerializer = new StringRedisSerializer();
+        //key采用String的序列化方式
+        template.setKeySerializer(stringRedisSerializer);
+        //hash的key也采用String的序列化方式
+        template.setHashKeySerializer(stringRedisSerializer);
+        //value序列化方式采用jackson
+        template.setValueSerializer(jackson2JsonRedisSerializer);
+        //hash的value序列化采用jackson
+        template.setHashValueSerializer(jackson2JsonRedisSerializer);
+        template.afterPropertiesSet();
+
+        return template;
+    }
+
+
+    @Bean
+    public JdkSerializationRedisSerializer jdkSerializationRedisSerializer() {
+        return new JdkSerializationRedisSerializer();
+    }
+
+    @PostConstruct
+    public void initFastJson(){//fastJson 设置全局安全性问题
+        ParserConfig.getGlobalInstance().setSafeMode(true);
+    }
+
+}
+```
+
