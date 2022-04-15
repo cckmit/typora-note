@@ -187,8 +187,10 @@
 ```sh
 #!/bin/bash
 
+##报错重试次数
+RETRYS=2
 ##超时退出，单位秒
-TTL=500
+TTL=300
 ##全部包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
 ALL_ARRAY=('' '')
 ##常用包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
@@ -202,7 +204,8 @@ OUTPUT_LOGS_NAME=output.txt
 SERVER_DIR=/opt/da/
 ##默认配置文件路径
 CONFIG_DIR=/opt/da/prod/
-
+##默认路径:当前脚本路径
+CUR_PATH=$(readlink -f "$(dirname "$0")")
 
 function stopProcess(){
 	if [[ ! $1 ]];then
@@ -315,7 +318,7 @@ function start(){
 	for var_app_name in ${ALL_ARRAY[*]}
 	do
 		if [[ $tempRetry -ne 1 ]];then
-			retry=2 ##每个服务最大重试次数
+			retry=$RETRYS ##每个服务最大重试次数
 		fi
 		echo -n '正在启动' $var_app_name '...'
 		run $var_app_name
@@ -355,6 +358,7 @@ function restart(){
 		unset ALL_ARRAY
 		ALL_ARRAY=(${COMMON_ARRAY[*]})
 	fi
+	valid
 	stop
 	start
 }
@@ -392,17 +396,17 @@ function run(){
 	## 特殊日志特殊处理
 		if [[ "$var_app_name" == *"da-server"* ]];then
 			log=server.txt
-			nohup java -Xdebug -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8887 -jar $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
+			nohup java $JAVA_OPTS -Xdebug -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8887 -jar $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
 		elif [[ "$var_app_name" == *"da-web"*  ]];then
 			log=web.txt
-			nohup java -jar $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
+			nohup java $JAVA_OPTS -jar $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
 		elif [[ "$var_app_name" == *"da-config"*  ]];then
-			nohup java -jar -Dspring.config.location=$CONFIG_DIR,classpath:/application.yml $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
+			nohup java $JAVA_OPTS -jar -Dspring.config.location=$CONFIG_DIR,classpath:/application.yml $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
 		else
 			if [[ $isLog -ne 1 ]];then
-				nohup java -jar $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
+				nohup java $JAVA_OPTS -jar $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
 			else
-				nohup java -jar $SERVER_DIR$var_app_name > null 2>&1 &
+				nohup java $JAVA_OPTS -jar $SERVER_DIR$var_app_name > null 2>&1 &
 			fi
 			
 		fi
@@ -425,23 +429,75 @@ function java(){
 function status(){
 	local tempArray=(${ALL_ARRAY[*]})
 	## 用户 进程号 进程的cpu占用率 进程的内存占用率 进程所使用的虚存大小 进程实际内存大小Kb  进程的状态 进程启动时间 进程使用总cpu时间 服务路径
-	printf '%-10s %-10s %-12s %-10s %-10s %-10s %-5s %-8s %-10s %-10s\n' "用户" "进程号" "进程的cpu占用率" "进程的内存占用率" "进程所使用的虚存大小" "进程实际内存大小Kb" "进程启动时间" "进程使用总cpu时间" "服务路径" 
+	printf '%-8s %-10s %-12s %-10s %-10s %-10s %-5s %-8s %-10s %-10s\n' "用户" "进程号" "cpu占用率" "内存占用率" "虚存大小Kb" "实际内存大小Kb" "进程启动时间" "使用总cpu时间" "服务路径" 
 	for ((i=0;$i<${#tempArray[*]};i++))
 	do
 		local name=${tempArray[$i]}
 		## local P_INFO=`ps -aux|grep $name|grep -v grep|grep -v kill|awk '{printf "%-8s %-8s %-10s %-10s %-10s %-10s %-5s %-8s %-10s %-30s",$1,$2,$3,$4,$5,$6}'`
 		local P_INFO=`ps -aux|grep $name|grep -v grep|grep -v kill`
 		if [[ $P_INFO ]];then
-		
-			echo "$P_INFO" | awk '{printf "%-8s %-8s%-15s %-17s %-20s %-17s %-13s %-16s %-s\n",$1,$2,$3,$4,$5,$6,$9,$10,$SERVER_DIR$name}'
+			echo -n "$P_INFO" | awk '{printf "%-6s %-8s%-10s %-8s %-10s %-16s %-8s %-12s",$1,$2,$3,$4,$5,$6,$9,$10}'
+			prinf "%-s" $SERVER_DIR$name
 		else
 			echo "$SERVER_DIR$name 服务已关闭"
 		fi
 	done
 }
 
+## 检验当前目录是否存在jar包，不存在则报错
+function valid(){
+config
+echo '正在检测'$SERVER_DIR'路径下的服务是否齐全...'
+	local tempArray=(${ALL_ARRAY[*]})
+	for ((i=0;$i<${#tempArray[*]};i++))
+	do
+		local name=${tempArray[$i]}
+		if [ -f  $SERVER_DIR/$name ];then
+			echo -e '\033[42m' $name'检测成功!' '\033[0m'
+		else
+			NOTFOUNF=1
+			echo -e '\033[31m' $SERVER_DIR'路径下不存在服务：'$name '\033[0m'		
+		fi
+	done
+if [[ $NOTFOUNF -eq 1]];then
+	exit 1
+fi
+}
+
+function config(){
+	if [[ "$CONFIG_PATH" == "config" || "${restartType}" == "config" ]];then
+		read -p '请输入服务路径(默认是脚本路径'$CUR_PATH')：' SERVER_DIR
+		read -p '请输入服务路径(默认是脚本路径'$CUR_PATH'/prod)：' CONFIG_DIR
+		read -p '请输入报错重试次数(默认是'$RETRYS')：' TEM_C
+		read -p '请输入超时时间(默认是'$TTL')：' TEM_S
+		read -p '请输入jvm配置(默认无)：' JAVA_OPTS
+		$JAVA_OPTS
+		# 使用 -z 可以判断一个变量是否为空；
+		if [[ ! $SERVER_DIR ]];then
+			SERVER_DIR=$CUR_PATH
+		fi
+		if [[ "${SERVER_DIR: -1}" != "/" ]];then
+			SERVER_DIR=$SERVER_DIR'/'
+		fi
+		if [[ ! $CONFIG_DIR ]];then
+			CONFIG_DIR=$CUR_PATH/prod/
+		fi
+		if [[ "${CONFIG_DIR: -1}" != "/" ]];then
+			CONFIG_DIR=$CONFIG_DIR'/'
+		fi
+		if [[ $TEM_C ]];then
+			RETRYS=$TEM_C
+		fi
+		if [[ $TEM_S ]];then
+			TTL=$TEM_S
+		fi
+	fi
+}
+
+CONFIG_PATH=$2
 case "$1" in
 	'start')
+	valid
 	start
 	;;
 	'stop')
@@ -449,9 +505,11 @@ case "$1" in
 	;;
 	'restart')
 	restartType=$2
+	CONFIG_PATH=$3
 	restart
 	;;
 	'faststart')
+	valid
 	faststart
 	;;
 	'status')
@@ -470,6 +528,7 @@ case "$1" in
 	echo "faststart: 快速启动所有服务，报错不会自动重试，服务启动超时则跳过继续下一个服务"
 	echo "status:查看服务状态及基本信息"
 	echo "java:查看java基本信息"
+	echo "config:配置信息"
 	exit 1
 	;;
 esac
