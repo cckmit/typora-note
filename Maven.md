@@ -534,3 +534,392 @@ case "$1" in
 esac
 ```
 
+## 4.自动化脚本shell，外部文件
+
+```shell
+#!/bin/bash
+
+##报错重试次数
+RETRYS=2
+##超时退出，单位秒
+TTL=300
+##全部包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
+ALL_ARRAY=('' '')
+##常用包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
+COMMON_ARRAY=('')
+##快速包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
+FAST_ARRAY_1=()
+FAST_ARRAY_2=()
+##输出日志默认名称
+OUTPUT_LOGS_NAME=output.txt
+##服务默认路径
+SERVER_DIR=$(readlink -f "$(dirname "$0")")'/'
+##默认配置文件路径
+#CONFIG_DIR=/opt/da/prod/
+##默认路径:当前脚本路径
+CUR_PATH=$(readlink -f "$(dirname "$0")")
+##默认监听日志关键内容
+DEFAULT_LISTEN='JVM running for'
+
+function stopProcess(){
+	if [[ ! $1 ]];then
+		echo '获取不到服务进程，请检查配置文件'
+	else
+		local PROCESS_NAME=$1
+		local tpid=`ps -ef|grep $PROCESS_NAME|grep -v grep|grep -v kill|awk '{print $2}'`
+		if [ ${tpid} ];then
+			echo '正在关闭' $PROCESS_NAME '进程...'
+			kill -9 $tpid
+		fi
+		sleep 1
+		local tpid=`ps -ef|grep $PROCESS_NAME|grep -v grep|grep -v kill|awk '{print $2}'`
+		if [ ${tpid} ];then
+			echo '关闭' $PROCESS_NAME '进程失败，重试中...'
+			kill -9 $tpid
+		else
+			echo '关闭 ' $PROCESS_NAME '进程成功!'
+		fi
+	fi
+}
+
+function startProcess(){
+	local APP_NAME=$1 ## 服务名称
+	local LOGS=$2	## 服务日志输出名称
+	success=0
+	fail=0
+	sleep 1
+	count=$[$count + 1]
+	local num=$[RANDOM%10+1]
+	local percent=$[$count + num]
+	
+	##实时进度百分比
+	if [[ $percent -le 99 && ($percent -gt $tempslot || ! $tempslot) ]];then
+		tempslot=$percent
+		if [ $percent -lt 10 ];then
+			printf "%d%%\b\b" $percent
+		else
+			printf "%d%%\b\b\b" $percent
+		fi
+	fi
+	
+	## 特殊服务特殊处理
+	if [[ "$APP_NAME" == *"da-config"* ]];then
+		tmsg=`cat ${LOGS} | grep 'Application version is -1: false' |awk '{print $2}'`
+	else
+		tmsg=`cat ${LOGS} | grep 'JVM running for' |awk '{print $2}'`
+	fi
+	
+	if [[ ${tmsg} ]];then
+		success=1
+		if [[ $percent -ge 100 ]];then
+			printf "%d%%\b\b\b" 100
+		else
+			for(( i=$percent; $i<=100; i++ ))
+			do
+				sleep 0.02
+				printf "%d%%\b\b\b" $i
+			done
+		fi
+	fi
+	
+	## 报错服务重试，当启动类型为快速启动则不执行重试
+	if [[ $fail -eq 0 && $success -eq 0 && "${retry}" ]];then
+		local tpid=`ps -ef|grep $APP_NAME|grep -v grep|grep -v kill|awk '{print $2}'`
+		if [ ! ${tpid} ];then
+			echo $APP_NAME '服务因未知错误而关闭，正在重试...'
+			tempslot=0
+			count=1
+			if [[ $retry -eq 0 ]];then
+				fail=1
+				echo $APP_NAME '重试最大次数仍然失败，请手动启动！已跳过此服务，可检查进程是否存在'
+			else
+				start 1
+			fi
+		fi
+	fi
+	
+	## 超时服务跳过
+	if [[ $fail -eq 0 && $success -eq 0 && $count -eq $TTL ]];then
+		fail=1
+		echo $APP_NAME '启动超时！已跳过此服务，可检查进程是否存在'
+	fi
+	
+	if [[ $fail -eq 0 && $success -eq 0 ]];then
+		startProcess $APP_NAME $LOGS
+	else
+		tempslot=0
+		count=1
+		echo
+	fi
+}
+
+function stop(){
+	for var_app_name in ${ALL_ARRAY[*]}
+	do
+		stopProcess $var_app_name
+	done
+}
+
+function start(){
+	tempRetry=$1
+	if [[ $tempRetry -eq 1 ]];then
+		retry=$[$retry-1]
+		echo
+	else
+		tempRetry=0
+	fi
+	check
+	for ((i=0;$i<${#ALL_ARRAY[*]};i++))
+	do
+		local var_app_name=${ALL_ARRAY[$i]}
+		if [[ $tempRetry -ne 1 ]];then
+			retry=$RETRYS ##每个服务最大重试次数
+		fi
+		echo -n '正在启动' $var_app_name '...'
+		run $var_app_name
+		if [[ $success -eq 1 ]];then
+			echo $var_app_name '启动完成!'
+		fi
+	done
+	echo '服务已全部启动！'
+	exit 0
+}
+
+## 检查服务是否启动
+function check(){
+	echo '正在初始化服务...'
+	local tempArray=(${ALL_ARRAY[*]})
+	for ((i=0;$i<${#tempArray[*]};i++))
+	do
+		local name=${tempArray[$i]}
+		local tpid=`ps -ef|grep $name|grep -v grep|grep -v kill|awk '{print $2}'`
+		if [ ${tpid} ];then
+			unset ALL_ARRAY[$i]
+		fi
+	done
+	echo '初始化服务完成'
+}
+
+function restart(){
+	if [[ "${restartType}" == "all" ]];then
+		echo "all"
+	elif [[ "${restartType}" == "server" ]];then
+		unset ALL_ARRAY
+		ALL_ARRAY[0]=${COMMON_ARRAY[0]}
+	elif [[ "${restartType}" == "web" ]];then
+		unset ALL_ARRAY
+		ALL_ARRAY[0]=${COMMON_ARRAY[1]}
+	else
+		unset ALL_ARRAY
+		ALL_ARRAY=(${COMMON_ARRAY[*]})
+	fi
+	valid
+	stop
+	start
+}
+
+##快速启动
+function faststart(){
+	stop
+	## 快速启动一 根据最后一个服务来获取关键日志
+	echo -n "正在启动:${FAST_ARRAY_1[*]}..."
+	local lastIndex=$((${#FAST_ARRAY_1[@]}-1))
+	for var_app_name in ${FAST_ARRAY_1[*]}
+	do
+		if [[ "${FAST_ARRAY_1[lastIndex]}" == "$var_app_name" ]];then
+			run $var_app_name
+		else
+			run $var_app_name 1
+		fi
+	done
+	if [[ $success -eq 1 ]];then
+		echo '${FAST_ARRAY_1[*]}启动完成!'
+	fi
+	echo '服务已全部启动！'
+	exit 0
+	## 有多少就重复写多少
+}
+
+function run(){
+	local var_app_name=$1
+	local isLog=$2
+	local param=${var_app_name%%.*} ## 从后面去除后缀最后一个.
+	local param=${param%-*}			## 从后面去除后缀第一个-
+	local param=${param/-/_}		## 把剩余的—转换为_
+	local TEMP_LOGS=LOGS_$param		## 日志名称
+	local log=`eval echo '$'"${TEMP_LOGS}"`
+	local TEMP_JAVA_OPTS=JAVA_OPTS_$param		## jvm参数
+	local JAVA_OPTS=`eval echo '$'"${TEMP_JAVA_OPTS}"`
+	local TEMP_LISTEN=LOGS_$param		## 监听日志
+	local LISTEN=`eval echo '$'"${TEMP_LISTEN}"`
+	local TEMP_SPRING_CONFIG=SPRING_CONFIG_$param	## spring配置参数
+	local SPRING_CONFIG=`eval echo '$'"${TEMP_SPRING_CONFIG}"`
+	rm -f log $SERVER_DIR$log
+	
+	if [[ ! $log ]];then 
+		log=$OUTPUT_LOGS_NAME
+	fi
+	if [[ ! $JAVA_OPTS ]];then 
+		JAVA_OPTS=$DEFAULT_JAVA_OPTS
+	fi
+	if [[ ! $LISTEN ]];then 
+		LISTEN=$DEFAULT_LISTEN
+	fi
+	
+	if [[ $isLog -ne 1 ]];then
+		nohup java $JAVA_OPTS -jar $SPRING_CONFIG $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
+	else
+		nohup java $JAVA_OPTS -jar $SPRING_CONFIG $SERVER_DIR$var_app_name > /dev/null 2>&1 &
+	fi
+	if [[ $isLog -ne 1 ]];then
+		startProcess $var_app_name $SERVER_DIR$log	
+	fi
+
+	rm -f log $SERVER_DIR$OUTPUT_LOGS_NAME	
+}
+
+##java 环境信息
+function java(){
+	local JAVA_PATH=`which java`
+	local JAVA_VERSION=`$JAVA_PATH -version`
+	echo "JAVA安装路径：$JAVA_PATH"
+	echo "${JAVA_VERSION}"
+}
+
+##java 进程信息
+function status(){
+	local tempArray=(${ALL_ARRAY[*]})
+	## 用户 进程号 进程的cpu占用率 进程的内存占用率 进程所使用的虚存大小 进程实际内存大小Kb  进程的状态 进程启动时间 进程使用总cpu时间 服务路径
+	printf '%-8s %-10s %-12s %-10s %-10s %-10s %-5s %-8s %-10s %-10s\n' "用户" "进程号" "cpu占用率" "内存占用率" "虚存大小Kb" "实际内存大小Kb" "进程启动时间" "使用总cpu时间" "服务路径" 
+	for ((i=0;$i<${#tempArray[*]};i++))
+	do
+		local name=${tempArray[$i]}
+		## local P_INFO=`ps -aux|grep $name|grep -v grep|grep -v kill|awk '{printf "%-8s %-8s %-10s %-10s %-10s %-10s %-5s %-8s %-10s %-30s",$1,$2,$3,$4,$5,$6}'`
+		local P_INFO=`ps -aux|grep $name|grep -v grep|grep -v kill`
+		if [[ $P_INFO ]];then
+			echo -n "$P_INFO" | awk '{printf "%-6s %-8s%-10s %-8s %-10s %-16s %-8s %-12s",$1,$2,$3,$4,$5,$6,$9,$10}'
+			prinf "%-s" $SERVER_DIR$name
+		else
+			echo "$SERVER_DIR$name 服务已关闭"
+		fi
+	done
+}
+
+## 检验当前目录是否存在jar包，不存在则报错
+function valid(){
+config
+echo '正在检测'$SERVER_DIR'路径下的服务是否齐全...'
+	local tempArray=(${ALL_ARRAY[*]})
+	for ((i=0;$i<${#tempArray[*]};i++))
+	do
+		local name=${tempArray[$i]}
+		if [ -f  $SERVER_DIR/$name ];then
+			echo -e '\033[42m' $name'检测成功!' '\033[0m'
+		else
+			NOTFOUNF=1
+			echo -e '\033[31m' $SERVER_DIR'路径下不存在服务：'$name '\033[0m'		
+		fi
+	done
+if [[ $NOTFOUNF -eq 1]];then
+	exit 1
+fi
+}
+
+function config(){
+	if [[ "$CONFIG_PATH" == "config" || "${restartType}" == "config" ]];then
+		read -p '请输入服务路径(默认是脚本路径'$CUR_PATH')：' SERVER_DIR
+		read -p '请输入服务路径(默认是脚本路径'$CUR_PATH'/prod)：' CONFIG_DIR
+		read -p '请输入报错重试次数(默认是'$RETRYS')：' TEM_C
+		read -p '请输入超时时间(默认是'$TTL')：' TEM_S
+		read -p '请输入jvm配置(默认无)：' DEFAULT_JAVA_OPTS
+	fi
+}
+
+while read line;do
+	eval "$line"
+done <	springCloud.config
+
+# 使用 -z 可以判断一个变量是否为空；
+		if [[ ! $SERVER_DIR ]];then
+			SERVER_DIR=$CUR_PATH
+		fi
+		if [[ "${SERVER_DIR: -1}" != "/" ]];then
+			SERVER_DIR=$SERVER_DIR'/'
+		fi
+		if [[ ! $CONFIG_DIR ]];then
+			CONFIG_DIR=$CUR_PATH/prod/
+		fi
+		if [[ "${CONFIG_DIR: -1}" != "/" ]];then
+			CONFIG_DIR=$CONFIG_DIR'/'
+		fi
+		if [[ $TEM_C ]];then
+			RETRYS=$TEM_C
+		fi
+		if [[ $TEM_S ]];then
+			TTL=$TEM_S
+		fi				
+
+CONFIG_PATH=$2
+case "$1" in
+	'start')
+	valid
+	start
+	;;
+	'stop')
+	stop
+	;;
+	'restart')
+	restartType=$2
+	CONFIG_PATH=$3
+	restart
+	;;
+	'faststart')
+	valid
+	faststart
+	;;
+	'status')
+	status
+	;;
+	'java')
+	echo "JAVA版本信息："
+	java
+	;;
+	*)
+	echo "Usage: $0 {|start|stop|restart|faststart|java}"
+	echo "==================命令指南================"
+	echo "start:正常启动所有服务，已经启动的服务不会再次启动，若中途出现报错则会自动重试，重试次数默认2次，服务启动超时则跳过继续下一个服务"
+	echo "stop:正常关闭所有服务"
+	echo "restart: all-启动所有服务 | server-单独启动server服务 | web-单独启动web服务 | 默认启动server和web两个服务"
+	echo "faststart: 快速启动所有服务，报错不会自动重试，服务启动超时则跳过继续下一个服务"
+	echo "status:查看服务状态及基本信息"
+	echo "java:查看java基本信息"
+	echo "java:配置文件形式"
+	exit 1
+	;;
+esac
+```
+
+```txt
+##全部包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
+ALL_ARRAY=('da-server.jar' '')
+##常用包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
+COMMON_ARRAY=('')
+##快速包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
+FAST_ARRAY_1=()
+FAST_ARRAY_2=()
+##输出日志默认名称，默认output.txt
+OUTPUT_LOGS_NAME=output.log
+##存放服务的默认路径，默认是脚本所在路径
+##SERVER_DIR=/opt/da/
+##报错重试次数，选填，默认2次
+#RETRYS=2
+##超时退出，单位秒，选填，默认300秒
+#TTL=300
+################end：此行勿删##################
+
+LOGS_da_server=server.txt
+JAVA_OPTS_da_server="-Xdebug -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8887"
+LISTEN_da_server=""
+SPRING_CONFIG_da_server=""
+```
+
