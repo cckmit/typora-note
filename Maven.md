@@ -544,9 +544,9 @@ RETRYS=2
 ##超时退出，单位秒
 TTL=300
 ##全部包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
-ALL_ARRAY=('' '')
+ALL_ARRAY=()
 ##常用包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
-COMMON_ARRAY=('')
+COMMON_ARRAY=()
 ##快速包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
 FAST_ARRAY_1=()
 FAST_ARRAY_2=()
@@ -585,6 +585,8 @@ function stopProcess(){
 function startProcess(){
 	local APP_NAME=$1 ## 服务名称
 	local LOGS=$2	## 服务日志输出名称
+	local LISTEN_SERVER=$3	## 日志监听启动成功关键内容
+	local LISTEN_URL=$4	## TOMCAT服务监听
 	success=0
 	fail=0
 	sleep 1
@@ -603,10 +605,17 @@ function startProcess(){
 	fi
 	
 	## 特殊服务特殊处理
-	if [[ "$APP_NAME" == *"da-config"* ]];then
-		tmsg=`cat ${LOGS} | grep 'Application version is -1: false' |awk '{print $2}'`
+	if [[ $LISTEN_URL ]];then
+		if [[ $(curl -sIL -w "%{http_code}" -o /dev/null $LISTEN_URL) -eq 200 ]];then
+			tmsg="200"
+		fi
+	elif [[ $LOGS ]];then
+		echo "server"
+		tmsg=`cat ${LOGS} | grep $LISTEN_SERVER |awk '{print $2}'`
 	else
-		tmsg=`cat ${LOGS} | grep 'JVM running for' |awk '{print $2}'`
+		echo '获取不到启动监听配置，当前服务仍在后台启动，脚本即将退出...'
+		sleep 2
+		exit 1
 	fi
 	
 	if [[ ${tmsg} ]];then
@@ -623,7 +632,7 @@ function startProcess(){
 	fi
 	
 	## 报错服务重试，当启动类型为快速启动则不执行重试
-	if [[ $fail -eq 0 && $success -eq 0 && "${retry}" ]];then
+	if [[ $fail -eq 0 && $success -eq 0 && "${retry}" && ! $LISTEN_URL ]];then
 		local tpid=`ps -ef|grep $APP_NAME|grep -v grep|grep -v kill|awk '{print $2}'`
 		if [ ! ${tpid} ];then
 			echo $APP_NAME '服务因未知错误而关闭，正在重试...'
@@ -643,9 +652,9 @@ function startProcess(){
 		fail=1
 		echo $APP_NAME '启动超时！已跳过此服务，可检查进程是否存在'
 	fi
-	
+
 	if [[ $fail -eq 0 && $success -eq 0 ]];then
-		startProcess $APP_NAME $LOGS
+		startProcess $APP_NAME $LOGS $LISTEN_SERVER $LISTEN_URL
 	else
 		tempslot=0
 		count=1
@@ -669,9 +678,9 @@ function start(){
 		tempRetry=0
 	fi
 	check
-	for ((i=0;$i<${#ALL_ARRAY[*]};i++))
+	## springboot服务启动
+	for var_app_name in ${ALL_ARRAY[*]}
 	do
-		local var_app_name=${ALL_ARRAY[$i]}
 		if [[ $tempRetry -ne 1 ]];then
 			retry=$RETRYS ##每个服务最大重试次数
 		fi
@@ -681,6 +690,7 @@ function start(){
 			echo $var_app_name '启动完成!'
 		fi
 	done
+	startTomcat
 	echo '服务已全部启动！'
 	exit 0
 }
@@ -697,10 +707,20 @@ function check(){
 			unset ALL_ARRAY[$i]
 		fi
 	done
+
+	for ((i=0;$i<${#TOMCAT_ARRAY[*]};i++))
+	do
+		local name=${TOMCAT_ARRAY[$i]}
+		local tpid=`netstat -an | egrep ":38080" | awk '{print $4}'`
+		if [ ${tpid} ];then
+			unset TOMCAT_ARRAY[$i]
+		fi
+	done
 	echo '初始化服务完成'
 }
 
 function restart(){
+
 	if [[ "${restartType}" == "all" ]];then
 		echo "all"
 	elif [[ "${restartType}" == "server" ]];then
@@ -717,6 +737,7 @@ function restart(){
 	stop
 	start
 }
+
 
 ##快速启动
 function faststart(){
@@ -740,6 +761,40 @@ function faststart(){
 	## 有多少就重复写多少
 }
 
+##启动tomcat
+function startTomcat(){
+	## tomcat服务启动
+	for var_app_name in ${TOMCAT_ARRAY[*]}
+	do
+		echo -n '正在启动' $var_app_name '...'
+		runTomcat $var_app_name
+		if [[ $success -eq 1 ]];then
+			echo $var_app_name '启动完成!'
+		fi
+	done
+}
+
+function runTomcat(){
+	local var_app_name=$1
+	local param=${var_app_name%%.*} ## 从后面去除后缀最后一个.
+	local param=${param%-*}			## 从后面去除后缀第一个-
+	local param=${param/-/_}		## 把剩余的—转换为_
+	local TEMP_TOMCAT_PATH=TOMCAT_PATH_$param	## tomcat启动路径
+	local TOMCAT_PATH=`eval echo '$'"${TEMP_TOMCAT_PATH}"`
+	local TEMP_TOMCAT_URL=TOMCAT_URL_$param		##tomcat监听地址
+	local TOMCAT_URL=`eval echo '$'"${TEMP_TOMCAT_URL}"`
+    if [[ ! $TOMCAT_PATH ]];then
+		echo "请配置$var_app_name服务的tomcat启动路径"
+		exit 1
+	fi
+	if [[ ! $TEMP_TOMCAT_URL ]];then
+		echo "请配置$var_app_name服务的tomcat启动监听url地址"
+		exit 1
+	fi
+	cd $TOMCAT_PATH
+	startProcess $var_app_name -1 -1 $TOMCAT_URL
+}
+
 function run(){
 	local var_app_name=$1
 	local isLog=$2
@@ -754,8 +809,7 @@ function run(){
 	local LISTEN=`eval echo '$'"${TEMP_LISTEN}"`
 	local TEMP_SPRING_CONFIG=SPRING_CONFIG_$param	## spring配置参数
 	local SPRING_CONFIG=`eval echo '$'"${TEMP_SPRING_CONFIG}"`
-	rm -f log $SERVER_DIR$log
-	
+
 	if [[ ! $log ]];then 
 		log=$OUTPUT_LOGS_NAME
 	fi
@@ -765,17 +819,15 @@ function run(){
 	if [[ ! $LISTEN ]];then 
 		LISTEN=$DEFAULT_LISTEN
 	fi
-	
+
 	if [[ $isLog -ne 1 ]];then
+		rm -f log $SERVER_DIR$log
 		nohup java $JAVA_OPTS -jar $SPRING_CONFIG $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
+		startProcess $var_app_name $SERVER_DIR$log $LISTEN
+		rm -f log $SERVER_DIR$OUTPUT_LOGS_NAME
 	else
 		nohup java $JAVA_OPTS -jar $SPRING_CONFIG $SERVER_DIR$var_app_name > /dev/null 2>&1 &
-	fi
-	if [[ $isLog -ne 1 ]];then
-		startProcess $var_app_name $SERVER_DIR$log	
-	fi
-
-	rm -f log $SERVER_DIR$OUTPUT_LOGS_NAME	
+	fi	
 }
 
 ##java 环境信息
@@ -820,7 +872,7 @@ echo '正在检测'$SERVER_DIR'路径下的服务是否齐全...'
 			echo -e '\033[31m' $SERVER_DIR'路径下不存在服务：'$name '\033[0m'		
 		fi
 	done
-if [[ $NOTFOUNF -eq 1]];then
+if [[ $NOTFOUNF -eq 1 ]];then
 	exit 1
 fi
 }
@@ -884,6 +936,9 @@ case "$1" in
 	echo "JAVA版本信息："
 	java
 	;;
+	'tomcat')
+	startTomcat 'start'
+	;;
 	*)
 	echo "Usage: $0 {|start|stop|restart|faststart|java}"
 	echo "==================命令指南================"
@@ -901,25 +956,41 @@ esac
 
 ```txt
 ##全部包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
-ALL_ARRAY=('da-server.jar' '')
+ALL_ARRAY=('da-server-1.0.0.jar' '')
 ##常用包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
 COMMON_ARRAY=('')
 ##快速包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
 FAST_ARRAY_1=()
 FAST_ARRAY_2=()
 ##输出日志默认名称，默认output.txt
-OUTPUT_LOGS_NAME=output.log
+OUTPUT_LOGS_NAME=output.txt
 ##存放服务的默认路径，默认是脚本所在路径
 ##SERVER_DIR=/opt/da/
 ##报错重试次数，选填，默认2次
-#RETRYS=2
+##RETRYS=2
 ##超时退出，单位秒，选填，默认300秒
-#TTL=300
-################end：此行勿删##################
+##TTL=300
+##默认监听日志启动关键内容
+##DEFAULT_LISTEN='JVM running for'
+################以下为服务的配置##################
+##服务命名规则：如da-server-1.0.0.jar，则取名为da_server,注意，必须为下划线
+##LOGS_服务名称前缀：日志名称
+##LISTEN_服务名称前缀：日志监听文本，启动成功的关键内容
+##JAVA_OPTS_服务名称前缀：服务jvm参数
+##SPRING_CONFIG_服务名称前缀：spring参数
+
+LISTEN_da_config="Application version is -1: false"
+SPRING_CONFIG_da_config="-Dspring.config.location=/opt/da/prod/,classpath:/application.yml"
 
 LOGS_da_server=server.txt
 JAVA_OPTS_da_server="-Xdebug -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8887"
-LISTEN_da_server=""
-SPRING_CONFIG_da_server=""
+
+LOGS_ROOT=web.txt
+
+############Tomcat服务配置##############
+##服务命名规则：如da-server-1.0.0.jar，则取名为da_server,注意，必须为下划线
+TOMCAT_ARRAY=()
+TOMCAT_PATH_ROOT=F:/Download/apache-tomcat-9.0.39/bin
+TOMCAT_URL_ROOT=‘http://127.0.0.1:38080/solr/index.html#/’
 ```
 
