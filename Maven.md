@@ -199,13 +199,13 @@ COMMON_ARRAY=('')
 FAST_ARRAY_1=()
 FAST_ARRAY_2=()
 ##输出日志默认名称
-OUTPUT_LOGS_NAME=output.txt
+OUTPUT_LOGS_NAME=output.log
 ##服务默认路径
-SERVER_DIR=/opt/da/
+SERVER_DIR=$(cd `dirname $0`; pwd)'/'
 ##默认配置文件路径
-CONFIG_DIR=/opt/da/prod/
+#CONFIG_DIR=/opt/da/prod/
 ##默认路径:当前脚本路径
-CUR_PATH=$(readlink -f "$(dirname "$0")")
+CUR_PATH=$(cd `dirname $0`; pwd)'/'
 
 function stopProcess(){
 	if [[ ! $1 ]];then
@@ -393,14 +393,8 @@ function run(){
 	if [[ $isLog -eq 1 ]];then ##isLog等于1 代表不生成日志文件，并且不监听日志
 		log=null
 	fi
-	## 特殊日志特殊处理
-		if [[ "$var_app_name" == *"da-server"* ]];then
-			log=server.txt
-			nohup java $JAVA_OPTS -Xdebug -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8887 -jar $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
-		elif [[ "$var_app_name" == *"da-web"*  ]];then
-			log=web.txt
-			nohup java $JAVA_OPTS -jar $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
-		elif [[ "$var_app_name" == *"da-config"*  ]];then
+	
+	if [[ "$var_app_name" == *"config"*  ]];then
 			nohup java $JAVA_OPTS -jar -Dspring.config.location=$CONFIG_DIR,classpath:/application.yml $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
 		else
 			if [[ $isLog -ne 1 ]];then
@@ -408,8 +402,26 @@ function run(){
 			else
 				nohup java $JAVA_OPTS -jar $SERVER_DIR$var_app_name > null 2>&1 &
 			fi
+	fi
 			
-		fi
+	## 特殊日志特殊处理
+	##if [[ "$var_app_name" == *"da-server"* ]];then
+	##		log=server.txt
+	##		nohup java $JAVA_OPTS -Xdebug -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8887 -jar $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
+	##	elif [[ "$var_app_name" == *"da-web"*  ]];then
+	##		log=web.txt
+	##		nohup java $JAVA_OPTS -jar $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
+	##	elif [[ "$var_app_name" == *"da-config"*  ]];then
+	##		nohup java $JAVA_OPTS -jar -Dspring.config.location=$CONFIG_DIR,classpath:/application.yml $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
+	##	else
+	##		if [[ $isLog -ne 1 ]];then
+	##			nohup java $JAVA_OPTS -jar $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
+	##		else
+	##			nohup java $JAVA_OPTS -jar $SERVER_DIR$var_app_name > null 2>&1 &
+	##		fi
+	##		
+	##fi
+		
 	if [[ $isLog -ne 1 ]];then
 		startProcess $var_app_name $SERVER_DIR$log	
 	fi
@@ -471,8 +483,10 @@ function config(){
 		read -p '请输入报错重试次数(默认是'$RETRYS')：' TEM_C
 		read -p '请输入超时时间(默认是'$TTL')：' TEM_S
 		read -p '请输入jvm配置(默认无)：' JAVA_OPTS
-		$JAVA_OPTS
-		# 使用 -z 可以判断一个变量是否为空；
+	fi
+}
+
+# 使用 -z 可以判断一个变量是否为空；
 		if [[ ! $SERVER_DIR ]];then
 			SERVER_DIR=$CUR_PATH
 		fi
@@ -491,8 +505,6 @@ function config(){
 		if [[ $TEM_S ]];then
 			TTL=$TEM_S
 		fi
-	fi
-}
 
 CONFIG_PATH=$2
 case "$1" in
@@ -528,7 +540,7 @@ case "$1" in
 	echo "faststart: 快速启动所有服务，报错不会自动重试，服务启动超时则跳过继续下一个服务"
 	echo "status:查看服务状态及基本信息"
 	echo "java:查看java基本信息"
-	echo "config:配置信息"
+	echo "java:配置文件形式"
 	exit 1
 	;;
 esac
@@ -553,11 +565,11 @@ FAST_ARRAY_2=()
 ##输出日志默认名称
 OUTPUT_LOGS_NAME=output.txt
 ##服务默认路径
-SERVER_DIR=$(readlink -f "$(dirname "$0")")'/'
+SERVER_DIR=$(cd `dirname $0`; pwd)'/'
 ##默认配置文件路径
 #CONFIG_DIR=/opt/da/prod/
 ##默认路径:当前脚本路径
-CUR_PATH=$(readlink -f "$(dirname "$0")")
+CUR_PATH=$(cd `dirname $0`; pwd)'/'
 ##默认监听日志关键内容
 DEFAULT_LISTEN='JVM running for'
 
@@ -632,7 +644,7 @@ function startProcess(){
 	fi
 	
 	## 报错服务重试，当启动类型为快速启动则不执行重试
-	if [[ $fail -eq 0 && $success -eq 0 && "${retry}" && ! $LISTEN_URL ]];then
+	if [[ $fail -eq 0 && $success -eq 0 && "${retry}" ]];then
 		local tpid=`ps -ef|grep $APP_NAME|grep -v grep|grep -v kill|awk '{print $2}'`
 		if [ ! ${tpid} ];then
 			echo $APP_NAME '服务因未知错误而关闭，正在重试...'
@@ -666,6 +678,12 @@ function stop(){
 	for var_app_name in ${ALL_ARRAY[*]}
 	do
 		stopProcess $var_app_name
+	done
+	for var_tomccat_name in ${TOMCAT_ARRAY[*]}
+	do
+		local TEMP_TOMCAT_SERVER=TOMCAT_SERVER_$var_tomccat_name		##tomcat服务名称
+		local TOMCAT_SERVER=`eval echo '$'"${TEMP_TOMCAT_SERVER}"`
+		stopProcess $TOMCAT_SERVER
 	done
 }
 
@@ -711,12 +729,25 @@ function check(){
 	for ((i=0;$i<${#TOMCAT_ARRAY[*]};i++))
 	do
 		local name=${TOMCAT_ARRAY[$i]}
-		local tpid=`netstat -an | egrep ":38080" | awk '{print $4}'`
+		local TEMP_TOMCAT_SERVER=TOMCAT_SERVER_$name		##tomcat服务名称
+		local TOMCAT_SERVER=`eval echo '$'"${TEMP_TOMCAT_SERVER}"`
+		validParam $TOMCAT_SERVER $TEMP_TOMCAT_SERVER
+		local tpid=`ps -ef|grep $TOMCAT_SERVER|grep -v grep|grep -v kill|awk '{print $2}'`
 		if [ ${tpid} ];then
 			unset TOMCAT_ARRAY[$i]
 		fi
 	done
 	echo '初始化服务完成'
+}
+
+## 检验参数是否配置
+function validParam(){
+	local name=$1
+	local param=$2
+	if [[ ! $name ]];then
+		echo "$param 参数未配置"
+		exit 1
+	fi
 }
 
 function restart(){
@@ -766,6 +797,9 @@ function startTomcat(){
 	## tomcat服务启动
 	for var_app_name in ${TOMCAT_ARRAY[*]}
 	do
+		if [[ $tempRetry -ne 1 ]];then
+			retry=$RETRYS ##每个服务最大重试次数
+		fi
 		echo -n '正在启动' $var_app_name '...'
 		runTomcat $var_app_name
 		if [[ $success -eq 1 ]];then
@@ -779,20 +813,17 @@ function runTomcat(){
 	local param=${var_app_name%%.*} ## 从后面去除后缀最后一个.
 	local param=${param%-*}			## 从后面去除后缀第一个-
 	local param=${param/-/_}		## 把剩余的—转换为_
-	local TEMP_TOMCAT_PATH=TOMCAT_PATH_$param	## tomcat启动路径
-	local TOMCAT_PATH=`eval echo '$'"${TEMP_TOMCAT_PATH}"`
+	local TEMP_TOMCAT_START=TOMCAT_START_$param	## tomcat启动路径
+	local TOMCAT_START=`eval echo '$'"${TEMP_TOMCAT_START}"`
 	local TEMP_TOMCAT_URL=TOMCAT_URL_$param		##tomcat监听地址
 	local TOMCAT_URL=`eval echo '$'"${TEMP_TOMCAT_URL}"`
-    if [[ ! $TOMCAT_PATH ]];then
-		echo "请配置$var_app_name服务的tomcat启动路径"
-		exit 1
-	fi
-	if [[ ! $TEMP_TOMCAT_URL ]];then
-		echo "请配置$var_app_name服务的tomcat启动监听url地址"
-		exit 1
-	fi
-	cd $TOMCAT_PATH
-	startProcess $var_app_name -1 -1 $TOMCAT_URL
+	local TEMP_TOMCAT_SERVER=TOMCAT_SERVER_$param		##tomcat服务名称
+	local TOMCAT_SERVER=`eval echo '$'"${TEMP_TOMCAT_SERVER}"`
+	validParam $TOMCAT_SERVER $TEMP_TOMCAT_SERVER
+	validParam $TOMCAT_START $TEMP_TOMCAT_START
+	validParam $TOMCAT_URL $TEMP_TOMCAT_URL
+	sh $TOMCAT_START
+	startProcess $TOMCAT_SERVER -1 -1 $TOMCAT_URL
 }
 
 function run(){
@@ -850,7 +881,7 @@ function status(){
 		local P_INFO=`ps -aux|grep $name|grep -v grep|grep -v kill`
 		if [[ $P_INFO ]];then
 			echo -n "$P_INFO" | awk '{printf "%-6s %-8s%-10s %-8s %-10s %-16s %-8s %-12s",$1,$2,$3,$4,$5,$6,$9,$10}'
-			prinf "%-s" $SERVER_DIR$name
+			echo $SERVER_DIR$name
 		else
 			echo "$SERVER_DIR$name 服务已关闭"
 		fi
@@ -972,6 +1003,7 @@ OUTPUT_LOGS_NAME=output.txt
 ##TTL=300
 ##默认监听日志启动关键内容
 ##DEFAULT_LISTEN='JVM running for'
+
 ################以下为服务的配置##################
 ##服务命名规则：如da-server-1.0.0.jar，则取名为da_server,注意，必须为下划线
 ##LOGS_服务名称前缀：日志名称
@@ -990,7 +1022,10 @@ LOGS_ROOT=web.txt
 ############Tomcat服务配置##############
 ##服务命名规则：如da-server-1.0.0.jar，则取名为da_server,注意，必须为下划线
 TOMCAT_ARRAY=()
-TOMCAT_PATH_ROOT=F:/Download/apache-tomcat-9.0.39/bin
-TOMCAT_URL_ROOT=‘http://127.0.0.1:38080/solr/index.html#/’
+TOMCAT_SERVER_ROOT='apache-tomcat-9.0.39'
+TOMCAT_START_ROOT='F:/Download/apache-tomcat-9.0.39/bin'
+TOMCAT_URL_ROOT=‘http://127.0.0.1:38080’
+
+############end此行勿删##############
 ```
 
