@@ -573,23 +573,34 @@ CUR_PATH=$(cd `dirname $0`; pwd)'/'
 ##默认监听日志关键内容
 DEFAULT_LISTEN='JVM running for'
 
+# 定义颜色变量
+RED='\e[1;31m' # 红
+GREEN='\e[1;32m' # 绿
+DEEP_GREEN='\e[96m' #黑底青色
+BACK_RED='\e[41m' #红底白字
+YELLOW='\e[1;33m' # 黄
+BLUE='\e[1;34m' # 蓝
+PINK='\e[1;35m' # 粉红
+RES='\e[0m' # 清除颜色
+
+​
 function stopProcess(){
 	if [[ ! $1 ]];then
-		echo '获取不到服务进程，请检查配置文件'
+		echo -e "${RED}获取不到服务进程，请检查配置文件${RES}"
 	else
 		local PROCESS_NAME=$1
 		local tpid=`ps -ef|grep $PROCESS_NAME|grep -v grep|grep -v kill|awk '{print $2}'`
 		if [ ${tpid} ];then
-			echo '正在关闭' $PROCESS_NAME '进程...'
+			echo -e "${YELLOW}正在关闭 $PROCESS_NAME 进程...${RES}"
 			kill -9 $tpid
 		fi
 		sleep 1
 		local tpid=`ps -ef|grep $PROCESS_NAME|grep -v grep|grep -v kill|awk '{print $2}'`
 		if [ ${tpid} ];then
-			echo '关闭' $PROCESS_NAME '进程失败，重试中...'
+			echo -e "${YELLOW}关闭 $PROCESS_NAME 进程失败，重试中...${RES}"
 			kill -9 $tpid
 		else
-			echo '关闭 ' $PROCESS_NAME '进程成功!'
+			echo -e "${GREEN}关闭 $PROCESS_NAME 进程成功!${RES}"
 		fi
 	fi
 }
@@ -622,10 +633,9 @@ function startProcess(){
 			tmsg="200"
 		fi
 	elif [[ $LOGS ]];then
-		echo "server"
 		tmsg=`cat ${LOGS} | grep $LISTEN_SERVER |awk '{print $2}'`
 	else
-		echo '获取不到启动监听配置，当前服务仍在后台启动，脚本即将退出...'
+		echo -e "${YELLOW}获取不到启动监听配置，当前服务仍在后台启动，脚本即将退出...${RES}"	
 		sleep 2
 		exit 1
 	fi
@@ -637,7 +647,7 @@ function startProcess(){
 		else
 			for(( i=$percent; $i<=100; i++ ))
 			do
-				sleep 0.02
+				sleep 0.01
 				printf "%d%%\b\b\b" $i
 			done
 		fi
@@ -647,12 +657,12 @@ function startProcess(){
 	if [[ $fail -eq 0 && $success -eq 0 && "${retry}" ]];then
 		local tpid=`ps -ef|grep $APP_NAME|grep -v grep|grep -v kill|awk '{print $2}'`
 		if [ ! ${tpid} ];then
-			echo $APP_NAME '服务因未知错误而关闭，正在重试...'
+			echo -e "${YELLOW}$APP_NAME服务因未知错误而关闭，正在重试...${RES}"		
 			tempslot=0
 			count=1
 			if [[ $retry -eq 0 ]];then
 				fail=1
-				echo $APP_NAME '重试最大次数仍然失败，请手动启动！已跳过此服务，可检查进程是否存在'
+				echo -e "${RED}$APP_NAME 重试最大次数仍然失败，请手动启动！已跳过此服务，可检查进程是否存在${RES}"	
 			else
 				start 1
 			fi
@@ -662,7 +672,7 @@ function startProcess(){
 	## 超时服务跳过
 	if [[ $fail -eq 0 && $success -eq 0 && $count -eq $TTL ]];then
 		fail=1
-		echo $APP_NAME '启动超时！已跳过此服务，可检查进程是否存在'
+		echo -e "${RED}$APP_NAME 启动超时！已跳过此服务，可检查进程是否存在${RES}"
 	fi
 
 	if [[ $fail -eq 0 && $success -eq 0 ]];then
@@ -702,20 +712,20 @@ function start(){
 		if [[ $tempRetry -ne 1 ]];then
 			retry=$RETRYS ##每个服务最大重试次数
 		fi
-		echo -n '正在启动' $var_app_name '...'
+		echo -n -e "${YELLOW}正在启动' $var_app_name ...${RES}"
 		run $var_app_name
-		if [[ $success -eq 1 ]];then
-			echo $var_app_name '启动完成!'
+		if [[ $success -eq 1 ]];thens
+			echo -e "${GREEN}$var_app_name 启动完成!${RES}"
 		fi
 	done
 	startTomcat
-	echo '服务已全部启动！'
+	echo -e "${GREEN}服务已全部启动！${RES}"
 	exit 0
 }
 
 ## 检查服务是否启动
 function check(){
-	echo '正在初始化服务...'
+	echo -e "${YELLOW}正在初始化服务...${RES}"
 	local tempArray=(${ALL_ARRAY[*]})
 	for ((i=0;$i<${#tempArray[*]};i++))
 	do
@@ -737,7 +747,7 @@ function check(){
 			unset TOMCAT_ARRAY[$i]
 		fi
 	done
-	echo '初始化服务完成'
+	echo -e "${YELLOW}初始化服务完成${RES}"
 }
 
 ## 检验参数是否配置
@@ -745,7 +755,7 @@ function validParam(){
 	local name=$1
 	local param=$2
 	if [[ ! $name ]];then
-		echo "$param 参数未配置"
+		echo -e "${RED}$param 参数未配置${RES}"
 		exit 1
 	fi
 }
@@ -774,7 +784,7 @@ function restart(){
 function faststart(){
 	stop
 	## 快速启动一 根据最后一个服务来获取关键日志
-	echo -n "正在启动:${FAST_ARRAY_1[*]}..."
+	echo -n -e "${YELLOW}正在启动:${FAST_ARRAY_1[*]}...${RES}"
 	local lastIndex=$((${#FAST_ARRAY_1[@]}-1))
 	for var_app_name in ${FAST_ARRAY_1[*]}
 	do
@@ -785,9 +795,9 @@ function faststart(){
 		fi
 	done
 	if [[ $success -eq 1 ]];then
-		echo '${FAST_ARRAY_1[*]}启动完成!'
+		echo -e "${GREEN}${FAST_ARRAY_1[*]}启动完成!${RES}"
 	fi
-	echo '服务已全部启动！'
+	echo -e "${GREEN}服务已全部启动！${RES}"
 	exit 0
 	## 有多少就重复写多少
 }
@@ -800,10 +810,10 @@ function startTomcat(){
 		if [[ $tempRetry -ne 1 ]];then
 			retry=$RETRYS ##每个服务最大重试次数
 		fi
-		echo -n '正在启动' $var_app_name '...'
+		echo -n -e "${YELLOW}正在启动' $var_app_name .....${RES}"
 		runTomcat $var_app_name
 		if [[ $success -eq 1 ]];then
-			echo $var_app_name '启动完成!'
+			echo -e "${GREEN}$var_app_name启动完成!${RES}"
 		fi
 	done
 }
@@ -883,7 +893,7 @@ function status(){
 			echo -n "$P_INFO" | awk '{printf "%-6s %-8s%-10s %-8s %-10s %-16s %-8s %-12s",$1,$2,$3,$4,$5,$6,$9,$10}'
 			echo $SERVER_DIR$name
 		else
-			echo "$SERVER_DIR$name 服务已关闭"
+			echo -e "${RED}$SERVER_DIR$name 服务已关闭${RES}"
 		fi
 	done
 }
@@ -897,10 +907,10 @@ echo '正在检测'$SERVER_DIR'路径下的服务是否齐全...'
 	do
 		local name=${tempArray[$i]}
 		if [ -f  $SERVER_DIR/$name ];then
-			echo -e '\033[42m' $name'检测成功!' '\033[0m'
+			echo -e "${GREEN} $name'检测成功!${RES}"
 		else
 			NOTFOUNF=1
-			echo -e '\033[31m' $SERVER_DIR'路径下不存在服务：'$name '\033[0m'		
+			echo -e "${RED}$SERVER_DIR'路径下不存在服务：$name ${RES}"
 		fi
 	done
 if [[ $NOTFOUNF -eq 1 ]];then
@@ -971,15 +981,15 @@ case "$1" in
 	startTomcat 'start'
 	;;
 	*)
-	echo "Usage: $0 {|start|stop|restart|faststart|java}"
-	echo "==================命令指南================"
-	echo "start:正常启动所有服务，已经启动的服务不会再次启动，若中途出现报错则会自动重试，重试次数默认2次，服务启动超时则跳过继续下一个服务"
-	echo "stop:正常关闭所有服务"
-	echo "restart: all-启动所有服务 | server-单独启动server服务 | web-单独启动web服务 | 默认启动server和web两个服务"
-	echo "faststart: 快速启动所有服务，报错不会自动重试，服务启动超时则跳过继续下一个服务"
-	echo "status:查看服务状态及基本信息"
-	echo "java:查看java基本信息"
-	echo "java:配置文件形式"
+	echo -e "${GREEN}Usage: $0 {|start|stop|restart|faststart|java}${RES}"
+	echo -e "${BACK_RED}==================命令指南================${RES}"
+	echo -e "${DEEP_GREEN}start:正常启动所有服务，已经启动的服务不会再次启动，若中途出现报错则会自动重试，重试次数默认2次，服务启动超时则跳过继续下一个服务${RES}"
+	echo -e "${DEEP_GREEN}stop:正常关闭所有服务${RES}"
+	echo -e "${DEEP_GREEN}restart: all-启动所有服务 | server-单独启动server服务 | web-单独启动web服务 | 默认启动server和web两个服务${RES}"
+	echo -e "${DEEP_GREEN}faststart: 快速启动所有服务，报错不会自动重试，服务启动超时则跳过继续下一个服务${RES}"
+	echo -e "${DEEP_GREEN}status:查看服务状态及基本信息${RES}"
+	echo -e "${DEEP_GREEN}java:查看java基本信息${RES}"
+	echo -e "${DEEP_GREEN}config:配置文件形式${RES}"
 	exit 1
 	;;
 esac
