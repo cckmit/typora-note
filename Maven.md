@@ -572,6 +572,8 @@ SERVER_DIR=$(cd `dirname $0`; pwd)'/'
 CUR_PATH=$(cd `dirname $0`; pwd)'/'
 ##默认监听日志关键内容
 DEFAULT_LISTEN='JVM running for'
+##计时
+TOTAL_TIME_SYS=0
 
 # 定义颜色变量
 RED='\e[1;31m' # 红
@@ -582,20 +584,18 @@ YELLOW='\e[1;33m' # 黄
 BLUE='\e[1;34m' # 蓝
 PINK='\e[1;35m' # 粉红
 RES='\e[0m' # 清除颜色
-
-​
 function stopProcess(){
 	if [[ ! $1 ]];then
 		echo -e "${RED}获取不到服务进程，请检查配置文件${RES}"
 	else
 		local PROCESS_NAME=$1
-		local tpid=`ps -ef|grep $PROCESS_NAME|grep -v grep|grep -v kill|awk '{print $2}'`
+		local tpid=`ps -ef|grep "$PROCESS_NAME"|grep -v grep|grep -v kill|awk '{print $2}'`
 		if [ ${tpid} ];then
 			echo -e "${YELLOW}正在关闭 $PROCESS_NAME 进程...${RES}"
 			kill -9 $tpid
 		fi
 		sleep 1
-		local tpid=`ps -ef|grep $PROCESS_NAME|grep -v grep|grep -v kill|awk '{print $2}'`
+		local tpid=`ps -ef|grep "$PROCESS_NAME"|grep -v grep|grep -v kill|awk '{print $2}'`
 		if [ ${tpid} ];then
 			echo -e "${YELLOW}关闭 $PROCESS_NAME 进程失败，重试中...${RES}"
 			kill -9 $tpid
@@ -633,7 +633,7 @@ function startProcess(){
 			tmsg="200"
 		fi
 	elif [[ $LOGS ]];then
-		tmsg=`cat ${LOGS} | grep $LISTEN_SERVER |awk '{print $2}'`
+		tmsg=`cat ${LOGS} | grep "$LISTEN_SERVER" |awk '{print $2}'`
 	else
 		echo -e "${YELLOW}获取不到启动监听配置，当前服务仍在后台启动，脚本即将退出...${RES}"	
 		sleep 2
@@ -676,7 +676,7 @@ function startProcess(){
 	fi
 
 	if [[ $fail -eq 0 && $success -eq 0 ]];then
-		startProcess $APP_NAME $LOGS $LISTEN_SERVER $LISTEN_URL
+		startProcess "$APP_NAME" "$LOGS" "$LISTEN_SERVER" "$LISTEN_URL"
 	else
 		tempslot=0
 		count=1
@@ -687,13 +687,13 @@ function startProcess(){
 function stop(){
 	for var_app_name in ${ALL_ARRAY[*]}
 	do
-		stopProcess $var_app_name
+		stopProcess "$var_app_name"
 	done
 	for var_tomccat_name in ${TOMCAT_ARRAY[*]}
 	do
 		local TEMP_TOMCAT_SERVER=TOMCAT_SERVER_$var_tomccat_name		##tomcat服务名称
 		local TOMCAT_SERVER=`eval echo '$'"${TEMP_TOMCAT_SERVER}"`
-		stopProcess $TOMCAT_SERVER
+		stopProcess "$TOMCAT_SERVER"
 	done
 }
 
@@ -713,13 +713,17 @@ function start(){
 			retry=$RETRYS ##每个服务最大重试次数
 		fi
 		echo -n -e "${YELLOW}正在启动' $var_app_name ...${RES}"
+		START_TIME_SYS=`date +%s`
 		run $var_app_name
-		if [[ $success -eq 1 ]];thens
-			echo -e "${GREEN}$var_app_name 启动完成!${RES}"
+		END_TIME_SYS=`date +%s`
+		SUM_TIME_SYS=$[ $END_TIME_SYS - $START_TIME_SYS ]
+		TOTAL_TIME_SYS=$[$TOTAL_TIME_SYS + $SUM_TIME_SYS ]
+		if [[ $success -eq 1 ]];then
+			echo -e "${GREEN}$var_app_name 启动完成!耗时:${SUM_TIME_SYS}秒。${RES}"
 		fi
 	done
 	startTomcat
-	echo -e "${GREEN}服务已全部启动！${RES}"
+	echo -e "${GREEN}服务已全部启动！总共耗时:${TOTAL_TIME_SYS}秒。${RES}"
 	exit 0
 }
 
@@ -736,12 +740,13 @@ function check(){
 		fi
 	done
 
-	for ((i=0;$i<${#TOMCAT_ARRAY[*]};i++))
+	local tempArray=(${TOMCAT_ARRAY[*]})
+	for ((i=0;$i<${#tempArray[*]};i++))
 	do
-		local name=${TOMCAT_ARRAY[$i]}
+		local name=${tempArray[$i]}
 		local TEMP_TOMCAT_SERVER=TOMCAT_SERVER_$name		##tomcat服务名称
 		local TOMCAT_SERVER=`eval echo '$'"${TEMP_TOMCAT_SERVER}"`
-		validParam $TOMCAT_SERVER $TEMP_TOMCAT_SERVER
+		validParam "$TOMCAT_SERVER" "$TEMP_TOMCAT_SERVER"
 		local tpid=`ps -ef|grep $TOMCAT_SERVER|grep -v grep|grep -v kill|awk '{print $2}'`
 		if [ ${tpid} ];then
 			unset TOMCAT_ARRAY[$i]
@@ -761,22 +766,55 @@ function validParam(){
 }
 
 function restart(){
-
+	echo -e "${GREEN}所有服务:${ALL_ARRAY[*]} ${TOMCAT_ARRAY[*]}${RES}"
+	echo -e "${GREEN}常用服务:${COMMON_ARRAY[*]} ${RES}"
+	echo -e "${YELLOW}输入常用服务下标索引指定服务重启：如：输入0，代表启动第一个服务${RES}"
+	echo -e "${YELLOW}-1：退出；all：重启所有服务；不输入默认重启日常服务${RES}"
+	read -p "请输入常用服务索引" restartType
 	if [[ "${restartType}" == "all" ]];then
 		echo "all"
-	elif [[ "${restartType}" == "server" ]];then
-		unset ALL_ARRAY
-		ALL_ARRAY[0]=${COMMON_ARRAY[0]}
-	elif [[ "${restartType}" == "web" ]];then
-		unset ALL_ARRAY
-		ALL_ARRAY[0]=${COMMON_ARRAY[1]}
+	elif [[ "$restartType" =~ ^[0-9]+$  ]];then
+		local lastIndex=$((${#FAST_ARRAY_1[@]}-1))
+		if [[ "$restartType" -lt ${#COMMON_ARRAY[@]} ]];then
+			filterServer "${COMMON_ARRAY[$restartType]}"
+		else
+			echo -e "${RED}常用服务下标输入过大，最大为下标索引 ${lastIndex}${RES}"
+			exit 1
+		fi
 	else
-		unset ALL_ARRAY
-		ALL_ARRAY=(${COMMON_ARRAY[*]})
+		for ((i=0;$i<${#COMMON_ARRAY[*]};i++))
+		do
+			local name=${COMMON_ARRAY[$i]}
+			filterServer "${name}"
+		done
 	fi
 	valid
 	stop
 	start
+}
+
+##过滤服务
+function filterServer(){
+	local server_name=$1
+	local tempArray=(${ALL_ARRAY[*]})
+	unset ALL_ARRAY
+	for ((i=0;$i<${#tempArray[*]};i++))
+	do
+		local name=${tempArray[$i]}
+		if [[ "${name}"=="${server_name}" ]];then
+			ALL_ARRAY[${#ALL_ARRAY[@]}]="${name}"
+		fi
+	done
+
+	local tempArray=(${TOMCAT_ARRAY[*]})
+	unset TOMCAT_ARRAY
+	for ((i=0;$i<${#tempArray[*]};i++))
+	do
+		local name=${tempArray[$i]}
+		if [[ "${name}"=="${server_name}" ]];then
+			TOMCAT_ARRAY[${#TOMCAT_ARRAY[@]}]="${name}"
+		fi
+	done
 }
 
 
@@ -810,45 +848,40 @@ function startTomcat(){
 		if [[ $tempRetry -ne 1 ]];then
 			retry=$RETRYS ##每个服务最大重试次数
 		fi
-		echo -n -e "${YELLOW}正在启动' $var_app_name .....${RES}"
-		runTomcat $var_app_name
+		echo -n -e "${YELLOW}正在启动$var_app_name.....${RES}"
+		START_TIME_SYS=`date +%s`
+		runTomcat $var_app_name > /dev/null
+		END_TIME_SYS=`date +%s`
+		SUM_TIME_SYS=$[ $END_TIME_SYS - $START_TIME_SYS ]
+		TOTAL_TIME_SYS=$[$TOTAL_TIME_SYS + $SUM_TIME_SYS ]
 		if [[ $success -eq 1 ]];then
-			echo -e "${GREEN}$var_app_name启动完成!${RES}"
+			echo -e "${GREEN}$var_app_name启动完成!耗时:${SUM_TIME_SYS}秒。${RES}"
 		fi
 	done
 }
 
 function runTomcat(){
-	local var_app_name=$1
-	local param=${var_app_name%%.*} ## 从后面去除后缀最后一个.
-	local param=${param%-*}			## 从后面去除后缀第一个-
-	local param=${param/-/_}		## 把剩余的—转换为_
-	local TEMP_TOMCAT_START=TOMCAT_START_$param	## tomcat启动路径
+	local var_app_name=$(formatParam "$1")
+	local TEMP_TOMCAT_START=TOMCAT_START_$var_app_name	## tomcat启动路径
 	local TOMCAT_START=`eval echo '$'"${TEMP_TOMCAT_START}"`
-	local TEMP_TOMCAT_URL=TOMCAT_URL_$param		##tomcat监听地址
+	local TEMP_TOMCAT_URL=TOMCAT_URL_$var_app_name		##tomcat监听地址
 	local TOMCAT_URL=`eval echo '$'"${TEMP_TOMCAT_URL}"`
-	local TEMP_TOMCAT_SERVER=TOMCAT_SERVER_$param		##tomcat服务名称
+	local TEMP_TOMCAT_SERVER=TOMCAT_SERVER_$var_app_name		##tomcat服务名称
 	local TOMCAT_SERVER=`eval echo '$'"${TEMP_TOMCAT_SERVER}"`
-	validParam $TOMCAT_SERVER $TEMP_TOMCAT_SERVER
-	validParam $TOMCAT_START $TEMP_TOMCAT_START
-	validParam $TOMCAT_URL $TEMP_TOMCAT_URL
-	sh $TOMCAT_START
+	sh $TOMCAT_START  > /dev/null
 	startProcess $TOMCAT_SERVER -1 -1 $TOMCAT_URL
 }
 
 function run(){
-	local var_app_name=$1
+	local var_app_name=$(formatParam "$1")
 	local isLog=$2
-	local param=${var_app_name%%.*} ## 从后面去除后缀最后一个.
-	local param=${param%-*}			## 从后面去除后缀第一个-
-	local param=${param/-/_}		## 把剩余的—转换为_
-	local TEMP_LOGS=LOGS_$param		## 日志名称
+	local TEMP_LOGS=LOGS_$var_app_name		## 日志名称
 	local log=`eval echo '$'"${TEMP_LOGS}"`
-	local TEMP_JAVA_OPTS=JAVA_OPTS_$param		## jvm参数
+	local TEMP_JAVA_OPTS=JAVA_OPTS_$var_app_name		## jvm参数
 	local JAVA_OPTS=`eval echo '$'"${TEMP_JAVA_OPTS}"`
-	local TEMP_LISTEN=LOGS_$param		## 监听日志
+	local TEMP_LISTEN=LISTEN_$var_app_name		## 监听日志
 	local LISTEN=`eval echo '$'"${TEMP_LISTEN}"`
-	local TEMP_SPRING_CONFIG=SPRING_CONFIG_$param	## spring配置参数
+	local TEMP_SPRING_CONFIG=SPRING_CONFIG_$var_app_name	## spring配置参数
 	local SPRING_CONFIG=`eval echo '$'"${TEMP_SPRING_CONFIG}"`
 
 	if [[ ! $log ]];then 
@@ -864,7 +897,7 @@ function run(){
 	if [[ $isLog -ne 1 ]];then
 		rm -f log $SERVER_DIR$log
 		nohup java $JAVA_OPTS -jar $SPRING_CONFIG $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
-		startProcess $var_app_name $SERVER_DIR$log $LISTEN
+		startProcess "$var_app_name" "$SERVER_DIR$log" "$LISTEN"
 		rm -f log $SERVER_DIR$OUTPUT_LOGS_NAME
 	else
 		nohup java $JAVA_OPTS -jar $SPRING_CONFIG $SERVER_DIR$var_app_name > /dev/null 2>&1 &
@@ -890,10 +923,25 @@ function status(){
 		## local P_INFO=`ps -aux|grep $name|grep -v grep|grep -v kill|awk '{printf "%-8s %-8s %-10s %-10s %-10s %-10s %-5s %-8s %-10s %-30s",$1,$2,$3,$4,$5,$6}'`
 		local P_INFO=`ps -aux|grep $name|grep -v grep|grep -v kill`
 		if [[ $P_INFO ]];then
-			echo -n "$P_INFO" | awk '{printf "%-6s %-8s%-10s %-8s %-10s %-16s %-8s %-12s",$1,$2,$3,$4,$5,$6,$9,$10}'
+			echo -n "$P_INFO" | awk '{printf "%-6s %-8s%-10s %-10s %-10s %-16s %-12s %-12s",$1,$2,$3,$4,$5,$6,$9,$10}'
 			echo $SERVER_DIR$name
 		else
 			echo -e "${RED}$SERVER_DIR$name 服务已关闭${RES}"
+		fi
+	done
+	for ((i=0;$i<${#TOMCAT_ARRAY[*]};i++))
+	do
+		local name=$(formatParam "${TOMCAT_ARRAY[$i]}")
+		local TEMP_TOMCAT_SERVER=TOMCAT_SERVER_$name		##tomcat服务名称
+		local TOMCAT_SERVER=`eval echo '$'"${TEMP_TOMCAT_SERVER}"`
+		local TEMP_TOMCAT_START=TOMCAT_START_$name	## tomcat启动路径
+		local TOMCAT_START=`eval echo '$'"${TEMP_TOMCAT_START}"`
+		local P_INFO=`ps -aux|grep "$TOMCAT_SERVER"|grep -v grep|grep -v kill`
+		if [[ $P_INFO ]];then
+			echo -n "$P_INFO" | awk '{printf "%-6s %-8s%-10s %-10s %-10s %-16s %-12s %-12s",$1,$2,$3,$4,$5,$6,$9,$10}'
+			echo "$TOMCAT_START"
+		else
+			echo -e "${RED}$TOMCAT_SERVER 服务已关闭${RES}"
 		fi
 	done
 }
@@ -907,25 +955,45 @@ echo '正在检测'$SERVER_DIR'路径下的服务是否齐全...'
 	do
 		local name=${tempArray[$i]}
 		if [ -f  $SERVER_DIR/$name ];then
+			echo -e "${GREEN} $name检测成功!${RES}"
+		else
+			NOTFOUNF=1
+			echo -e "${RED}$SERVER_DIR路径下不存在服务：$name ${RES}"
+		fi
+	done
+echo '正在检测TOMCAT服务是否齐全...'
+	for ((i=0;$i<${#TOMCAT_ARRAY[*]};i++))
+	do
+		local var_app_name=$(formatParam "${TOMCAT_ARRAY[$i]}")
+		local TEMP_TOMCAT_START=TOMCAT_START_$var_app_name	## tomcat启动路径
+		local TOMCAT_START=`eval echo '$'"${TEMP_TOMCAT_START}"`
+		local TEMP_TOMCAT_URL=TOMCAT_URL_$var_app_name		##tomcat监听地址
+		local TOMCAT_URL=`eval echo '$'"${TEMP_TOMCAT_URL}"`
+		local TEMP_TOMCAT_SERVER=TOMCAT_SERVER_$var_app_name  ##tomcat服务名称
+		local TOMCAT_SERVER=`eval echo '$'"${TEMP_TOMCAT_SERVER}"`
+		validParam "$TOMCAT_SERVER" "$TEMP_TOMCAT_SERVER"
+		validParam "$TOMCAT_START" "$TEMP_TOMCAT_START"
+		validParam "$TOMCAT_URL" "$TEMP_TOMCAT_URL"
+		if [ -f  $TOMCAT_START ];then
 			echo -e "${GREEN} $name'检测成功!${RES}"
 		else
 			NOTFOUNF=1
 			echo -e "${RED}$SERVER_DIR'路径下不存在服务：$name ${RES}"
 		fi
 	done
-if [[ $NOTFOUNF -eq 1 ]];then
-	exit 1
-fi
+	if [[ $NOTFOUNF -eq 1 ]];then
+		exit 1
+	fi
 }
 
 function config(){
 	if [[ "$CONFIG_PATH" == "config" || "${restartType}" == "config" ]];then
 		read -p '请输入服务路径(默认是脚本路径'$CUR_PATH')：' SERVER_DIR
-		read -p '请输入服务路径(默认是脚本路径'$CUR_PATH'/prod)：' CONFIG_DIR
 		read -p '请输入报错重试次数(默认是'$RETRYS')：' TEM_C
 		read -p '请输入超时时间(默认是'$TTL')：' TEM_S
 		read -p '请输入jvm配置(默认无)：' DEFAULT_JAVA_OPTS
 	fi
+	autoFill
 }
 
 while read line;do
@@ -933,6 +1001,7 @@ while read line;do
 done <	springCloud.config
 
 # 使用 -z 可以判断一个变量是否为空；
+function autoFill(){
 		if [[ ! $SERVER_DIR ]];then
 			SERVER_DIR=$CUR_PATH
 		fi
@@ -950,9 +1019,20 @@ done <	springCloud.config
 		fi
 		if [[ $TEM_S ]];then
 			TTL=$TEM_S
-		fi				
+		fi	
+}			
+
+# 格式化数据
+function formatParam(){
+	local var_app_name=$1
+	local param=${var_app_name%%.*} ## 从后面去除后缀最后一个.
+	local param=${param%-*}			## 从后面去除后缀第一个-
+	local param=${param/-/_}		## 把剩余的—转换为_
+	echo $param
+}
 
 CONFIG_PATH=$2
+autoFill
 case "$1" in
 	'start')
 	valid
@@ -976,9 +1056,6 @@ case "$1" in
 	'java')
 	echo "JAVA版本信息："
 	java
-	;;
-	'tomcat')
-	startTomcat 'start'
 	;;
 	*)
 	echo -e "${GREEN}Usage: $0 {|start|stop|restart|faststart|java}${RES}"
