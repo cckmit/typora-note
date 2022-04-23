@@ -1093,14 +1093,8 @@ function formatParam(){
 	echo $param
 }
 
-
-if [ ! -f "$SCRIPT_CONFIG" ]; then
-	touch "$SCRIPT_CONFIG"
-	if [ ! -f "$SCRIPT_CONFIG" ]; then
-		echo -e "${RED}$SCRIPT_CONFIG配置文件创建失败，请检查是否有权限创建 ${RES}"
-		exit 1
-	fi
-	echo "################默认配置##################
+function initConfig(){
+echo "################默认配置##################
 ##全部包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
 ##SERVER_VERSION='-1.0.0'
 ##ALL_ARRAY=('da-server'"$SERVER_VERSION")
@@ -1143,9 +1137,17 @@ if [ ! -f "$SCRIPT_CONFIG" ]; then
 ##TOMCAT_START_ROOT='F:/Download/apache-tomcat-9.0.39/bin'
 ##TOMCAT_URL_ROOT='127.0.0.1:38080'
 ##==============示例 end======================
-
 ############end此行勿删##############" > $SCRIPT_CONFIG	　
-	echo -e "${YELLOW}已为您创建配置文件springCloud1.config，请自行配置${RES}"
+echo -e "${GREEN}$SCRIPT_CONFIG初始化成功，请自行配置!${RES}"
+}
+
+if [ ! -f "$SCRIPT_CONFIG" ]; then
+	touch "$SCRIPT_CONFIG"
+	if [ ! -f "$SCRIPT_CONFIG" ]; then
+		echo -e "${RED}$SCRIPT_CONFIG配置文件创建失败，请检查是否有权限创建 ${RES}"
+		exit 1
+	fi
+	initConfig
 fi
 
 while read line;do
