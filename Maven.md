@@ -534,9 +534,9 @@ case "$1" in
 	*)
 	echo "Usage: $0 {|start|stop|restart|faststart|java}"
 	echo "==================命令指南================"
-	echo "start:正常启动所有服务，已经启动的服务不会再次启动，若中途出现报错则会自动重试，重试次数默认2次，服务启动超时则跳过继续下一个服务"
+	echo "start:正常启动所有服务，已经启动的服务不会再次启动，若中途出现报错则会自动重试,服务启动超时则跳过继续下一个服务"
 	echo "stop:正常关闭所有服务"
-	echo "restart: all-启动所有服务 | server-单独启动server服务 | web-单独启动web服务 | 默认启动server和web两个服务"
+	echo "restart: all-启动所有服务 | 输入COMMON_ARRAY下标单独重启服务 | 默认启动日常服务(COMMON_ARRAY)的配置"
 	echo "faststart: 快速启动所有服务，报错不会自动重试，服务启动超时则跳过继续下一个服务"
 	echo "status:查看服务状态及基本信息"
 	echo "java:查看java基本信息"
@@ -1093,8 +1093,14 @@ function formatParam(){
 	echo $param
 }
 
-function initConfig(){
-echo "################默认配置##################
+
+if [ ! -f "$SCRIPT_CONFIG" ]; then
+	touch "$SCRIPT_CONFIG"
+	if [ ! -f "$SCRIPT_CONFIG" ]; then
+		echo -e "${RED}$SCRIPT_CONFIG配置文件创建失败，请检查是否有权限创建 ${RES}"
+		exit 1
+	fi
+	echo "################默认配置##################
 ##全部包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
 ##SERVER_VERSION='-1.0.0'
 ##ALL_ARRAY=('da-server'"$SERVER_VERSION")
@@ -1137,17 +1143,9 @@ echo "################默认配置##################
 ##TOMCAT_START_ROOT='F:/Download/apache-tomcat-9.0.39/bin'
 ##TOMCAT_URL_ROOT='127.0.0.1:38080'
 ##==============示例 end======================
-############end此行勿删##############" > $SCRIPT_CONFIG	　
-echo -e "${GREEN}$SCRIPT_CONFIG初始化成功，请自行配置!${RES}"
-}
 
-if [ ! -f "$SCRIPT_CONFIG" ]; then
-	touch "$SCRIPT_CONFIG"
-	if [ ! -f "$SCRIPT_CONFIG" ]; then
-		echo -e "${RED}$SCRIPT_CONFIG配置文件创建失败，请检查是否有权限创建 ${RES}"
-		exit 1
-	fi
-	initConfig
+############end此行勿删##############" > $SCRIPT_CONFIG	　
+	echo -e "${YELLOW}已为您创建配置文件springCloud1.config，请自行配置${RES}"
 fi
 
 while read line;do
