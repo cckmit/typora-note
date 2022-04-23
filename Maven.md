@@ -551,6 +551,10 @@ esac
 ```shell
 #!/bin/bash
 
+##配置文件名称
+SCRIPT_CONFIG='springCloud.config'
+##默认版本号
+SERVER_VERSION='-1.0.0'
 ##报错重试次数
 RETRYS=2
 ##超时退出，单位秒
@@ -560,8 +564,7 @@ ALL_ARRAY=()
 ##常用包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
 COMMON_ARRAY=()
 ##快速包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
-FAST_ARRAY_1=()
-FAST_ARRAY_2=()
+FAST_ARRAY=()
 ##输出日志默认名称
 OUTPUT_LOGS_NAME=output.txt
 ##服务默认路径
@@ -584,6 +587,7 @@ YELLOW='\e[1;33m' # 黄
 BLUE='\e[1;34m' # 蓝
 PINK='\e[1;35m' # 粉红
 RES='\e[0m' # 清除颜色
+
 function stopProcess(){
 	if [[ ! $1 ]];then
 		echo -e "${RED}获取不到服务进程，请检查配置文件${RES}"
@@ -746,7 +750,7 @@ function check(){
 		local name=${tempArray[$i]}
 		local TEMP_TOMCAT_SERVER=TOMCAT_SERVER_$name		##tomcat服务名称
 		local TOMCAT_SERVER=`eval echo '$'"${TEMP_TOMCAT_SERVER}"`
-		validParam "$TOMCAT_SERVER" "$TEMP_TOMCAT_SERVER"
+		## validParam "$TOMCAT_SERVER" "$TEMP_TOMCAT_SERVER"
 		local tpid=`ps -ef|grep $TOMCAT_SERVER|grep -v grep|grep -v kill|awk '{print $2}'`
 		if [ ${tpid} ];then
 			unset TOMCAT_ARRAY[$i]
@@ -760,8 +764,8 @@ function validParam(){
 	local name=$1
 	local param=$2
 	if [[ ! $name ]];then
+		NOTFOUNF=1
 		echo -e "${RED}$param 参数未配置${RES}"
-		exit 1
 	fi
 }
 
@@ -770,11 +774,11 @@ function restart(){
 	echo -e "${GREEN}常用服务:${COMMON_ARRAY[*]} ${RES}"
 	echo -e "${YELLOW}输入常用服务下标索引指定服务重启：如：输入0，代表启动第一个服务${RES}"
 	echo -e "${YELLOW}-1：退出；all：重启所有服务；不输入默认重启日常服务${RES}"
-	read -p "请输入常用服务索引" restartType
+	read -p "请输入常用服务索引:" restartType
 	if [[ "${restartType}" == "all" ]];then
 		echo "all"
 	elif [[ "$restartType" =~ ^[0-9]+$  ]];then
-		local lastIndex=$((${#FAST_ARRAY_1[@]}-1))
+		local lastIndex=$((${#COMMON_ARRAY[@]}-1))
 		if [[ "$restartType" -lt ${#COMMON_ARRAY[@]} ]];then
 			filterServer "${COMMON_ARRAY[$restartType]}"
 		else
@@ -782,13 +786,13 @@ function restart(){
 			exit 1
 		fi
 	else
-		for ((i=0;$i<${#COMMON_ARRAY[*]};i++))
+		for ((j=0;$j<${#COMMON_ARRAY[*]};j++))
 		do
-			local name=${COMMON_ARRAY[$i]}
-			filterServer "${name}"
+			filterServer "${COMMON_ARRAY[$j]}"
 		done
+		 ALL_ARRAY=(${TEMP_ALL_ARRAY[*]})
+		TOMCAT_ARRAY=(${TEMP_TOMCAT_ARRAY[*]})
 	fi
-	valid
 	stop
 	start
 }
@@ -796,48 +800,68 @@ function restart(){
 ##过滤服务
 function filterServer(){
 	local server_name=$1
-	local tempArray=(${ALL_ARRAY[*]})
-	unset ALL_ARRAY
-	for ((i=0;$i<${#tempArray[*]};i++))
+	##unset ALL_ARRAY
+	for ((i=0;$i<${#ALL_ARRAY[*]};i++))
 	do
-		local name=${tempArray[$i]}
-		if [[ "${name}"=="${server_name}" ]];then
-			ALL_ARRAY[${#ALL_ARRAY[@]}]="${name}"
+		local name=${ALL_ARRAY[$i]}
+		if [[ "${name}" == "${server_name}" ]];then
+			TEMP_ALL_ARRAY[${#TEMP_ALL_ARRAY[@]}]="${name}"
+			break
 		fi
 	done
 
-	local tempArray=(${TOMCAT_ARRAY[*]})
-	unset TOMCAT_ARRAY
-	for ((i=0;$i<${#tempArray[*]};i++))
+	##unset TOMCAT_ARRAY
+	for ((i=0;$i<${#TOMCAT_ARRAY[*]};i++))
 	do
-		local name=${tempArray[$i]}
-		if [[ "${name}"=="${server_name}" ]];then
-			TOMCAT_ARRAY[${#TOMCAT_ARRAY[@]}]="${name}"
+		local name=${TOMCAT_ARRAY[$i]}
+		if [[ "${name}" == "${server_name}" ]];then
+			TEMP_TOMCAT_ARRAY[${#TEMP_TOMCAT_ARRAY[@]}]="${name}"
+			break
 		fi
 	done
 }
-
 
 ##快速启动
 function faststart(){
 	stop
 	## 快速启动一 根据最后一个服务来获取关键日志
-	echo -n -e "${YELLOW}正在启动:${FAST_ARRAY_1[*]}...${RES}"
-	local lastIndex=$((${#FAST_ARRAY_1[@]}-1))
-	for var_app_name in ${FAST_ARRAY_1[*]}
+	echo -e "${YELLOW}正在启动:${FAST_ARRAY[*]}...${RES}"
+	for var_arr in ${FAST_ARRAY[*]}
 	do
-		if [[ "${FAST_ARRAY_1[lastIndex]}" == "$var_app_name" ]];then
-			run $var_app_name
-		else
-			run $var_app_name 1
-		fi
+		var_arr=(${var_arr//,/ })
+		echo ${var_arr[*]}
+		local lastIndex=$((${#var_arr[@]}-1))
+		for ((i=0;$i<${#var_arr[*]};i++))
+		do	
+			local var_app_name=${var_arr[$i]}
+			if [[ "${var_arr[lastIndex]}" == "$var_app_name" ]];then
+				local server_type=$(filterServer "${var_arr[$i]}")
+				runFast "$server_type" "$var_app_name"
+			else
+				local server_type=$(filterServer "${var_arr[$i]}")
+				runFast "$server_type" "$var_app_name" 1
+			fi
+		done
 	done
+	
 	if [[ $success -eq 1 ]];then
 		echo -e "${GREEN}${FAST_ARRAY_1[*]}启动完成!${RES}"
 	fi
 	echo -e "${GREEN}服务已全部启动！${RES}"
 	exit 0
-	## 有多少就重复写多少
+}
+
+function runFast(){
+	local server_type=$1
+	local server_name=$2
+	if [[ "${server_type}" == "server" ]];then
+		run $server_name $3
+	elif [[ "${server_type}" == "tomcat" ]];then
+		runTomcat $server_name 
+	else
+		echo -e "${RED}$server_name 服务不存在！${RES}"
+		exit 1
+	fi
 }
 
 ##启动tomcat
@@ -948,12 +972,26 @@ function status(){
 
 ## 检验当前目录是否存在jar包，不存在则报错
 function valid(){
-config
-echo '正在检测'$SERVER_DIR'路径下的服务是否齐全...'
+	config
+	echo -e "${GREEN}正在检测各服务配置...${RES}"
+	for ((i=0;$i<${#ALL_ARRAY[*]};i++))
+	do
+		local aname=$(formatParam "${ALL_ARRAY[$i]}")
+		for ((j=0;$j<${#TOMCAT_ARRAY[*]};j++))
+			do
+			local cname=$(formatParam "${TOMCAT_ARRAY[$i]}")
+			if [[ "${cname}" == "${aname}" ]];then
+				echo "$cname服务名称重复冲突，请修改配置"
+				exit 1
+			fi
+		done	
+	done
+	
 	local tempArray=(${ALL_ARRAY[*]})
 	for ((i=0;$i<${#tempArray[*]};i++))
 	do
-		local name=${tempArray[$i]}
+		local name="${tempArray[$i]}"
+		local name=$(formatParam "$name")
 		if [ -f  $SERVER_DIR/$name ];then
 			echo -e "${GREEN} $name检测成功!${RES}"
 		else
@@ -961,10 +999,11 @@ echo '正在检测'$SERVER_DIR'路径下的服务是否齐全...'
 			echo -e "${RED}$SERVER_DIR路径下不存在服务：$name ${RES}"
 		fi
 	done
-echo '正在检测TOMCAT服务是否齐全...'
+
 	for ((i=0;$i<${#TOMCAT_ARRAY[*]};i++))
 	do
-		local var_app_name=$(formatParam "${TOMCAT_ARRAY[$i]}")
+		local name="${TOMCAT_ARRAY[$i]}"
+		local var_app_name=$(formatParam "$name")
 		local TEMP_TOMCAT_START=TOMCAT_START_$var_app_name	## tomcat启动路径
 		local TOMCAT_START=`eval echo '$'"${TEMP_TOMCAT_START}"`
 		local TEMP_TOMCAT_URL=TOMCAT_URL_$var_app_name		##tomcat监听地址
@@ -984,6 +1023,7 @@ echo '正在检测TOMCAT服务是否齐全...'
 	if [[ $NOTFOUNF -eq 1 ]];then
 		exit 1
 	fi
+	echo -e "${GREEN}服务配置检测完成!${RES}"
 }
 
 function config(){
@@ -996,9 +1036,121 @@ function config(){
 	autoFill
 }
 
+function info(){
+	echo -e "${BACK_RED}==================默认配置================${RES}"
+	echo -e "${BLUE}默认超时(秒):$TTL ${RES}"
+	echo -e "${BLUE}默认重试次数:$RETRYS ${RES}"
+	echo -e "${BLUE}默认输出日志名称: $OUTPUT_LOGS_NAME ${RES}"
+	echo -e "${BLUE}默认监听日志关键内容: $DEFAULT_LISTEN ${RES}"
+	echo -e "${BLUE}默认服务路径(当前脚本路径):$SERVER_DIR ${RES}"
+	echo -e "${BLUE}默认服务版本号:$SERVER_VERSION ${RES}"
+	echo -e "${BACK_RED}==================SERVER配置================${RES}"
+	echo -e "${GREEN}SERVER服务:${ALL_ARRAY[*]} ${RES}"
+	echo -e "${BLUE}=========================================================== ${RES}"	
+	for var_server in ${ALL_ARRAY[*]}
+	do
+		local var_app_name=$(formatParam "$var_server")
+		local TEMP_LOGS=LOGS_$var_app_name		## 日志名称
+		local log=`eval echo '$'"${TEMP_LOGS}"`
+		local TEMP_JAVA_OPTS=JAVA_OPTS_$var_app_name		## jvm参数
+		local JAVA_OPTS=`eval echo '$'"${TEMP_JAVA_OPTS}"`
+		local TEMP_LISTEN=LISTEN_$var_app_name		## 监听日志
+		local LISTEN=`eval echo '$'"${TEMP_LISTEN}"`
+		local TEMP_SPRING_CONFIG=SPRING_CONFIG_$var_app_name	## spring配置参数
+		local SPRING_CONFIG=`eval echo '$'"${TEMP_SPRING_CONFIG}"`
+		echo -e "${BLUE}服务名称:$var_server ${RES}"
+		echo -e "${BLUE}日志名称:$log ${RES}"
+		echo -e "${BLUE}监听日志内容:$LISTEN ${RES}"
+		echo -e "${BLUE}jvm参数:$JAVA_OPTS ${RES}"
+		echo -e "${BLUE}spring配置参数:$SPRING_CONFIG ${RES}"
+		echo -e "${BLUE}=========================================================== ${RES}"
+	done
+	echo -e "${BACK_RED}==================TOMCAT配置================${RES}"
+	echo -e "${GREEN}TOMCAT服务:${TOMCAT_ARRAY[*]} ${RES}"
+	echo -e "${BLUE}=========================================================== ${RES}"	
+	for var_tomcat in ${TOMCAT_ARRAY[*]}
+	do
+		local var_app_name=$(formatParam "$var_tomcat")
+		local TEMP_TOMCAT_START=TOMCAT_START_$var_app_name	## tomcat启动路径
+		local TOMCAT_START=`eval echo '$'"${TEMP_TOMCAT_START}"`
+		local TEMP_TOMCAT_URL=TOMCAT_URL_$var_app_name		##tomcat监听地址
+		local TOMCAT_URL=`eval echo '$'"${TEMP_TOMCAT_URL}"`
+		local TEMP_TOMCAT_SERVER=TOMCAT_SERVER_$var_app_name  ##tomcat服务名称
+		local TOMCAT_SERVER=`eval echo '$'"${TEMP_TOMCAT_SERVER}"`
+		echo -e "${BLUE}服务名称:$TOMCAT_SERVER ${RES}"
+		echo -e "${BLUE}启动路径:$TOMCAT_START ${RES}"
+		echo -e "${BLUE}监听地址:$TOMCAT_URL ${RES}"	
+		echo -e "${BLUE}=========================================================== ${RES}"	
+	done
+}
+
+# 格式化数据
+function formatParam(){
+	local var_app_name=$1
+	local param=${var_app_name%%.*} ## 从后面去除后缀最后一个.
+	local param=${param%-*}			## 从后面去除后缀第一个-
+	local param=${param/-/_}		## 把剩余的—转换为_
+	echo $param
+}
+
+
+if [ ! -f "$SCRIPT_CONFIG" ]; then
+	touch "$SCRIPT_CONFIG"
+	if [ ! -f "$SCRIPT_CONFIG" ]; then
+		echo -e "${RED}$SCRIPT_CONFIG配置文件创建失败，请检查是否有权限创建 ${RES}"
+		exit 1
+	fi
+	echo "################默认配置##################
+##全部包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
+##SERVER_VERSION='-1.0.0'
+##ALL_ARRAY=('da-server'"$SERVER_VERSION")
+##常用包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
+##COMMON_ARRAY=('')
+##快速包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号,根据最后一个服务来获取关键日志
+##FAST_ARRAY=()
+##输出日志默认名称，默认output.txt
+##OUTPUT_LOGS_NAME=output.txt
+##存放服务的默认路径，默认是脚本所在路径
+##SERVER_DIR=/opt/da/
+##报错重试次数，选填，默认2次
+##RETRYS=2
+##超时退出，单位秒，选填，默认300秒
+##TTL=300
+##默认监听日志启动关键内容
+##DEFAULT_LISTEN='JVM running for'
+
+################SERVER服务配置【参数选配】##################
+##服务命名规则：如da-server-1.0.0.jar，则取名为da_server,注意，必须为下划线
+##LOGS_服务名称前缀：日志名称 【选填】
+##LISTEN_服务名称前缀：日志监听文本，启动成功的关键内容 【选填】
+##JAVA_OPTS_服务名称前缀：服务jvm参数 【选填】
+##SPRING_CONFIG_服务名称前缀：spring参数 【选填】
+##==============示例 start====================
+##LISTEN_da_server="Application version is -1: false"
+##SPRING_CONFIG_da_server="-Dspring.config.location=/opt/da/prod/,classpath:/application.yml"
+##LOGS_da_server=server.txt
+##JAVA_OPTS_da_server="-Xdebug -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8887"
+##==============示例 end======================
+
+############Tomcat服务配置【全部参数必须配置】##############
+##服务命名规则：如da-server-1.0.0.jar，则取名为da_server,注意，必须为下划线
+##TOMCAT_SERVER_服务名称前缀：启动的服务名称，一般说tomcat的名称，用于监听服务【必填】
+##TOMCAT_START_服务名称前缀：服务启动路径【必填】
+##TOMCAT_URL_服务名称前缀：服务启动成功的监听地址【必填】
+##==============示例 start====================
+##TOMCAT_ARRAY=('ROOT')
+##TOMCAT_SERVER_ROOT='apache-tomcat-9.0.39'
+##TOMCAT_START_ROOT='F:/Download/apache-tomcat-9.0.39/bin'
+##TOMCAT_URL_ROOT='127.0.0.1:38080'
+##==============示例 end======================
+
+############end此行勿删##############" > $SCRIPT_CONFIG	　
+	echo -e "${YELLOW}已为您创建配置文件springCloud1.config，请自行配置${RES}"
+fi
+
 while read line;do
 	eval "$line"
-done <	springCloud.config
+done <	$SCRIPT_CONFIG
 
 # 使用 -z 可以判断一个变量是否为空；
 function autoFill(){
@@ -1022,15 +1174,6 @@ function autoFill(){
 		fi	
 }			
 
-# 格式化数据
-function formatParam(){
-	local var_app_name=$1
-	local param=${var_app_name%%.*} ## 从后面去除后缀最后一个.
-	local param=${param%-*}			## 从后面去除后缀第一个-
-	local param=${param/-/_}		## 把剩余的—转换为_
-	echo $param
-}
-
 CONFIG_PATH=$2
 autoFill
 case "$1" in
@@ -1044,6 +1187,7 @@ case "$1" in
 	'restart')
 	restartType=$2
 	CONFIG_PATH=$3
+	valid
 	restart
 	;;
 	'faststart')
@@ -1053,20 +1197,23 @@ case "$1" in
 	'status')
 	status
 	;;
+	'info')
+	info
+	;;
 	'java')
 	echo "JAVA版本信息："
 	java
 	;;
 	*)
-	echo -e "${GREEN}Usage: $0 {|start|stop|restart|faststart|java}${RES}"
+	echo -e "${GREEN}Usage: $0 {|start|stop|restart|faststart|status|info|java}${RES}"
 	echo -e "${BACK_RED}==================命令指南================${RES}"
 	echo -e "${DEEP_GREEN}start:正常启动所有服务，已经启动的服务不会再次启动，若中途出现报错则会自动重试，重试次数默认2次，服务启动超时则跳过继续下一个服务${RES}"
 	echo -e "${DEEP_GREEN}stop:正常关闭所有服务${RES}"
 	echo -e "${DEEP_GREEN}restart: all-启动所有服务 | server-单独启动server服务 | web-单独启动web服务 | 默认启动server和web两个服务${RES}"
 	echo -e "${DEEP_GREEN}faststart: 快速启动所有服务，报错不会自动重试，服务启动超时则跳过继续下一个服务${RES}"
 	echo -e "${DEEP_GREEN}status:查看服务状态及基本信息${RES}"
+	echo -e "${DEEP_GREEN}info:查看配置文件信息 ${RES}"
 	echo -e "${DEEP_GREEN}java:查看java基本信息${RES}"
-	echo -e "${DEEP_GREEN}config:配置文件形式${RES}"
 	exit 1
 	;;
 esac
@@ -1074,12 +1221,12 @@ esac
 
 ```txt
 ##全部包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
-ALL_ARRAY=('da-server-1.0.0.jar' '')
+SERVER_VERSION='-1.0.0'
+ALL_ARRAY=('da-server$SERVER_VERSION')
 ##常用包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
 COMMON_ARRAY=('')
-##快速包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
-FAST_ARRAY_1=()
-FAST_ARRAY_2=()
+##快速包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号,根据最后一个服务来获取关键日志
+FAST_ARRAY=()
 ##输出日志默认名称，默认output.txt
 OUTPUT_LOGS_NAME=output.txt
 ##存放服务的默认路径，默认是脚本所在路径
