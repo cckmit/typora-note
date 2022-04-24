@@ -561,6 +561,7 @@ RETRYS=2
 TTL=300
 ##全部包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
 ALL_ARRAY=()
+TOMCAT_ARRAY=()
 ##常用包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
 COMMON_ARRAY=()
 ##快速包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
@@ -634,17 +635,20 @@ function startProcess(){
 	## 特殊服务特殊处理
 	if [[ $LISTEN_URL ]];then
 		if [[ $(curl -sIL -w "%{http_code}" -o /dev/null $LISTEN_URL) -eq 200 ]];then
-			tmsg="200"
+			tmsg=200
 		fi
 	elif [[ $LOGS ]];then
 		tmsg=`cat ${LOGS} | grep "$LISTEN_SERVER" |awk '{print $2}'`
+		if [[ ${tmsg} ]];then
+			tmsg=200
+		fi
 	else
 		echo -e "${YELLOW}获取不到启动监听配置，当前服务仍在后台启动，脚本即将退出...${RES}"	
 		sleep 2
 		exit 1
 	fi
 	
-	if [[ ${tmsg} ]];then
+	if [[ ${tmsg} -eq 200 ]];then
 		success=1
 		if [[ $percent -ge 100 ]];then
 			printf "%d%%\b\b\b" 100
@@ -774,12 +778,15 @@ function restart(){
 	echo -e "${GREEN}常用服务:${COMMON_ARRAY[*]} ${RES}"
 	echo -e "${YELLOW}输入常用服务下标索引指定服务重启：如：输入0，代表启动第一个服务${RES}"
 	echo -e "${YELLOW}-1：退出；all：重启所有服务；不输入默认重启日常服务${RES}"
-	read -p "请输入常用服务索引:" restartType
+	read -ep "请输入常用服务索引:" restartType
 	if [[ "${restartType}" == "all" ]];then
 		echo "all"
 	elif [[ "$restartType" =~ ^[0-9]+$  ]];then
 		local lastIndex=$((${#COMMON_ARRAY[@]}-1))
-		if [[ "$restartType" -lt ${#COMMON_ARRAY[@]} ]];then
+		if [[ "$restartType" -eq -1 ]];then
+			echo -e "${GREEN}正常退出${RES}"
+			exit 0
+		elif [[ "$restartType" -lt ${#COMMON_ARRAY[@]} ]];then
 			filterServer "${COMMON_ARRAY[$restartType]}"
 		else
 			echo -e "${RED}常用服务下标输入过大，最大为下标索引 ${lastIndex}${RES}"
@@ -897,15 +904,16 @@ function runTomcat(){
 }
 
 function run(){
-	local var_app_name=$(formatParam "$1")
+	local var_app_name=$1
+	local name=$(formatParam "$var_app_name")
 	local isLog=$2
-	local TEMP_LOGS=LOGS_$var_app_name		## 日志名称
+	local TEMP_LOGS=LOGS_$name		## 日志名称
 	local log=`eval echo '$'"${TEMP_LOGS}"`
-	local TEMP_JAVA_OPTS=JAVA_OPTS_$var_app_name		## jvm参数
+	local TEMP_JAVA_OPTS=JAVA_OPTS_$name		## jvm参数
 	local JAVA_OPTS=`eval echo '$'"${TEMP_JAVA_OPTS}"`
-	local TEMP_LISTEN=LISTEN_$var_app_name		## 监听日志
+	local TEMP_LISTEN=LISTEN_$name		## 监听日志
 	local LISTEN=`eval echo '$'"${TEMP_LISTEN}"`
-	local TEMP_SPRING_CONFIG=SPRING_CONFIG_$var_app_name	## spring配置参数
+	local TEMP_SPRING_CONFIG=SPRING_CONFIG_$name	## spring配置参数
 	local SPRING_CONFIG=`eval echo '$'"${TEMP_SPRING_CONFIG}"`
 
 	if [[ ! $log ]];then 
@@ -966,6 +974,7 @@ function status(){
 			echo "$TOMCAT_START"
 		else
 			echo -e "${RED}$TOMCAT_SERVER 服务已关闭${RES}"
+			
 		fi
 	done
 }
@@ -991,7 +1000,6 @@ function valid(){
 	for ((i=0;$i<${#tempArray[*]};i++))
 	do
 		local name="${tempArray[$i]}"
-		local name=$(formatParam "$name")
 		if [ -f  $SERVER_DIR/$name ];then
 			echo -e "${GREEN} $name检测成功!${RES}"
 		else
@@ -1028,10 +1036,10 @@ function valid(){
 
 function config(){
 	if [[ "$CONFIG_PATH" == "config" || "${restartType}" == "config" ]];then
-		read -p '请输入服务路径(默认是脚本路径'$CUR_PATH')：' SERVER_DIR
-		read -p '请输入报错重试次数(默认是'$RETRYS')：' TEM_C
-		read -p '请输入超时时间(默认是'$TTL')：' TEM_S
-		read -p '请输入jvm配置(默认无)：' DEFAULT_JAVA_OPTS
+		read -ep '请输入服务路径(默认是脚本路径'$CUR_PATH')：' SERVER_DIR
+		read -ep '请输入报错重试次数(默认是'$RETRYS')：' TEM_C
+		read -ep '请输入超时时间(默认是'$TTL')：' TEM_S
+		read -ep '请输入jvm配置(默认无)：' DEFAULT_JAVA_OPTS
 	fi
 	autoFill
 }
@@ -1093,17 +1101,14 @@ function formatParam(){
 	echo $param
 }
 
-
-if [ ! -f "$SCRIPT_CONFIG" ]; then
-	touch "$SCRIPT_CONFIG"
-	if [ ! -f "$SCRIPT_CONFIG" ]; then
-		echo -e "${RED}$SCRIPT_CONFIG配置文件创建失败，请检查是否有权限创建 ${RES}"
-		exit 1
-	fi
-	echo "################默认配置##################
+function initConfig(){
+read -ep "请输入SERVER服务数组：" ALL_ARRAY
+read -ep "请输入TOMCAT服务数组：" TOMCAT_ARRAY
+echo "################默认配置##################
 ##全部包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
 ##SERVER_VERSION='-1.0.0'
-##ALL_ARRAY=('da-server'"$SERVER_VERSION")
+ALL_ARRAY=($ALL_ARRAY)
+TOMCAT_ARRAY=($TOMCAT_ARRAY)
 ##常用包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
 ##COMMON_ARRAY=('')
 ##快速包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号,根据最后一个服务来获取关键日志
@@ -1118,7 +1123,6 @@ if [ ! -f "$SCRIPT_CONFIG" ]; then
 ##TTL=300
 ##默认监听日志启动关键内容
 ##DEFAULT_LISTEN='JVM running for'
-
 ################SERVER服务配置【参数选配】##################
 ##服务命名规则：如da-server-1.0.0.jar，则取名为da_server,注意，必须为下划线
 ##LOGS_服务名称前缀：日志名称 【选填】
@@ -1126,26 +1130,62 @@ if [ ! -f "$SCRIPT_CONFIG" ]; then
 ##JAVA_OPTS_服务名称前缀：服务jvm参数 【选填】
 ##SPRING_CONFIG_服务名称前缀：spring参数 【选填】
 ##==============示例 start====================
+##ALL_ARRAY=(da-server-1.0.0)
 ##LISTEN_da_server="Application version is -1: false"
 ##SPRING_CONFIG_da_server="-Dspring.config.location=/opt/da/prod/,classpath:/application.yml"
 ##LOGS_da_server=server.txt
 ##JAVA_OPTS_da_server="-Xdebug -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8887"
-##==============示例 end======================
-
+##==============示例 end======================" > $SCRIPT_CONFIG
+for var_server in ${ALL_ARRAY[*]}
+	do
+		local var_app_name=$(formatParam "$var_server")
+		local TEMP_LOGS=LOGS_$var_app_name		## 日志名称
+		local TEMP_JAVA_OPTS=JAVA_OPTS_$var_app_name		## jvm参数
+		local TEMP_LISTEN=LISTEN_$var_app_name		## 监听日志
+		local TEMP_SPRING_CONFIG=SPRING_CONFIG_$var_app_name	## spring配置参数
+	echo "################$var_server【选填】##################
+#$TEMP_LOGS=
+#$TEMP_LISTEN=
+#$TEMP_JAVA_OPTS=
+#$TEMP_SPRING_CONFIG= " >> $SCRIPT_CONFIG	　
+	done
+	
+echo "
 ############Tomcat服务配置【全部参数必须配置】##############
 ##服务命名规则：如da-server-1.0.0.jar，则取名为da_server,注意，必须为下划线
 ##TOMCAT_SERVER_服务名称前缀：启动的服务名称，一般说tomcat的名称，用于监听服务【必填】
 ##TOMCAT_START_服务名称前缀：服务启动路径【必填】
 ##TOMCAT_URL_服务名称前缀：服务启动成功的监听地址【必填】
 ##==============示例 start====================
-##TOMCAT_ARRAY=('ROOT')
+##TOMCAT_ARRAY=(ROOT)
 ##TOMCAT_SERVER_ROOT='apache-tomcat-9.0.39'
 ##TOMCAT_START_ROOT='F:/Download/apache-tomcat-9.0.39/bin'
 ##TOMCAT_URL_ROOT='127.0.0.1:38080'
-##==============示例 end======================
+##==============示例 end======================" >> $SCRIPT_CONFIG	
 
-############end此行勿删##############" > $SCRIPT_CONFIG	　
-	echo -e "${YELLOW}已为您创建配置文件springCloud1.config，请自行配置${RES}"
+for var_tomcat in ${TOMCAT_ARRAY[*]}
+	do
+		local var_app_name=$(formatParam "$var_tomcat")
+		local TEMP_TOMCAT_START=TOMCAT_START_$var_app_name	## tomcat启动路径
+		local TEMP_TOMCAT_URL=TOMCAT_URL_$var_app_name		##tomcat监听地址
+		local TEMP_TOMCAT_SERVER=TOMCAT_SERVER_$var_app_name  ##tomcat服务名称
+		echo "################$var_tomcat【必填，自行放开注释】##################
+#$TEMP_TOMCAT_START=
+#$TEMP_TOMCAT_URL=
+#$TEMP_TOMCAT_SERVER=
+" >> $SCRIPT_CONFIG	
+	done
+	echo "############end此行勿删##############" >> $SCRIPT_CONFIG
+	echo -e "${GREEN}已为您创建配置文件$SCRIPT_CONFIG，请自行配置${RES}"
+}
+
+if [ ! -f "$SCRIPT_CONFIG" ]; then
+	touch "$SCRIPT_CONFIG"
+	if [ ! -f "$SCRIPT_CONFIG" ]; then
+		echo -e "${RED}$SCRIPT_CONFIG配置文件创建失败，请检查是否有权限创建 ${RES}"
+		exit 
+	fi
+	initConfig
 fi
 
 while read line;do
