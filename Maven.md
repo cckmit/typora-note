@@ -566,6 +566,8 @@ TOMCAT_ARRAY=()
 COMMON_ARRAY=()
 ##快速包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
 FAST_ARRAY=()
+##日志默认路径
+LOGS_DIR=$(cd `dirname $0`; pwd)'/'
 ##输出日志默认名称
 OUTPUT_LOGS_NAME=output.txt
 ##服务默认路径
@@ -592,6 +594,7 @@ RES='\e[0m' # 清除颜色
 function stopProcess(){
 	if [[ ! $1 ]];then
 		echo -e "${RED}获取不到服务进程，请检查配置文件${RES}"
+		exit 1
 	else
 		local PROCESS_NAME=$1
 		local tpid=`ps -ef|grep "$PROCESS_NAME"|grep -v grep|grep -v kill|awk '{print $2}'`
@@ -779,15 +782,30 @@ function restart(){
 	echo -e "${YELLOW}输入常用服务下标索引指定服务重启：如：输入0，代表启动第一个服务${RES}"
 	echo -e "${YELLOW}-1：退出；all：重启所有服务；不输入默认重启日常服务${RES}"
 	read -ep "请输入常用服务索引:" restartType
+	restartType=(${restartType//,/ })
 	if [[ "${restartType}" == "all" ]];then
 		echo "all"
-	elif [[ "$restartType" =~ ^[0-9]+$  ]];then
+	elif [[ "${restartType[$0]}" =~ ^[-1-9]+$  ]];then
 		local lastIndex=$((${#COMMON_ARRAY[@]}-1))
 		if [[ "$restartType" -eq -1 ]];then
 			echo -e "${GREEN}正常退出${RES}"
 			exit 0
 		elif [[ "$restartType" -lt ${#COMMON_ARRAY[@]} ]];then
-			filterServer "${COMMON_ARRAY[$restartType]}"
+			for ((q=0;$q<${#restartType[*]};q++))
+			do
+				local inde=${restartType[$q]}
+				if [[ "$inde" -ge ${#COMMON_ARRAY[@]} ]];then
+					echo -e "${RED}常用服务下标输入过大，最大为下标索引 ${lastIndex}${RES}"
+					exit 1
+				elif [[ "$inde" -lt 0 ]];then
+					echo -e "${GREEN}正常退出${RES}"
+					exit 0
+				else
+					filterServer "${COMMON_ARRAY[$inde]}"
+				fi
+			done
+			ALL_ARRAY=(${TEMP_ALL_ARRAY[*]})
+			TOMCAT_ARRAY=(${TEMP_TOMCAT_ARRAY[*]})
 		else
 			echo -e "${RED}常用服务下标输入过大，最大为下标索引 ${lastIndex}${RES}"
 			exit 1
@@ -798,7 +816,7 @@ function restart(){
 			filterServer "${COMMON_ARRAY[$j]}"
 		done
 		 ALL_ARRAY=(${TEMP_ALL_ARRAY[*]})
-		TOMCAT_ARRAY=(${TEMP_TOMCAT_ARRAY[*]})
+		 TOMCAT_ARRAY=(${TEMP_TOMCAT_ARRAY[*]})
 	fi
 	stop
 	start
@@ -927,10 +945,10 @@ function run(){
 	fi
 
 	if [[ $isLog -ne 1 ]];then
-		rm -f log $SERVER_DIR$log
-		nohup java $JAVA_OPTS -jar $SPRING_CONFIG $SERVER_DIR$var_app_name >$SERVER_DIR$log 2>&1 &
-		startProcess "$var_app_name" "$SERVER_DIR$log" "$LISTEN"
-		rm -f log $SERVER_DIR$OUTPUT_LOGS_NAME
+		rm -f log $LOGS_DIR$log
+		nohup java $JAVA_OPTS -jar $SPRING_CONFIG $SERVER_DIR$var_app_name >$LOGS_DIR$log 2>&1 &
+		startProcess "$var_app_name" "$LOGS_DIR$log" "$LISTEN"
+		rm -f log $LOGS_DIR$OUTPUT_LOGS_NAME
 	else
 		nohup java $JAVA_OPTS -jar $SPRING_CONFIG $SERVER_DIR$var_app_name > /dev/null 2>&1 &
 	fi	
@@ -1097,14 +1115,17 @@ function formatParam(){
 	local var_app_name=$1
 	local param=${var_app_name%%.*} ## 从后面去除后缀最后一个.
 	local param=${param%-*}			## 从后面去除后缀第一个-
-	local param=${param/-/_}		## 把剩余的—转换为_
+	local param=${param//-/_}		## 把剩余的—转换为_
 	echo $param
 }
 
 function initConfig(){
-read -ep "请输入SERVER服务数组：" ALL_ARRAY
-read -ep "请输入TOMCAT服务数组：" TOMCAT_ARRAY
-echo "################默认配置##################
+read -ep "请输入SERVER服务数组(空格隔开，禁止逗号)：" ALL_ARRAY
+read -ep "请输入TOMCAT服务数组(空格隔开，禁止逗号)：" TOMCAT_ARRAY
+CREATEDATE=`date +%c`
+echo "## AUTHOR:WINJAY
+## DATE:$CREATEDATE
+################默认配置##################
 ##全部包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
 ##SERVER_VERSION='-1.0.0'
 ALL_ARRAY=($ALL_ARRAY)
@@ -1113,6 +1134,8 @@ TOMCAT_ARRAY=($TOMCAT_ARRAY)
 ##COMMON_ARRAY=('')
 ##快速包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号,根据最后一个服务来获取关键日志
 ##FAST_ARRAY=()
+##日志默认路径，默认是脚本所在路径
+##LOGS_DIR=/opt/da/
 ##输出日志默认名称，默认output.txt
 ##OUTPUT_LOGS_NAME=output.txt
 ##存放服务的默认路径，默认是脚本所在路径
@@ -1200,6 +1223,12 @@ function autoFill(){
 		if [[ "${SERVER_DIR: -1}" != "/" ]];then
 			SERVER_DIR=$SERVER_DIR'/'
 		fi
+		if [[ ! $LOGS_DIR ]];then
+			LOGS_DIR=$CUR_PATH
+		fi
+		if [[ "${LOGS_DIR: -1}" != "/" ]];then
+			LOGS_DIR=$LOGS_DIR'/'
+		fi
 		if [[ ! $CONFIG_DIR ]];then
 			CONFIG_DIR=$CUR_PATH/prod/
 		fi
@@ -1225,8 +1254,6 @@ case "$1" in
 	stop
 	;;
 	'restart')
-	restartType=$2
-	CONFIG_PATH=$3
 	valid
 	restart
 	;;
@@ -1301,5 +1328,115 @@ TOMCAT_START_ROOT='F:/Download/apache-tomcat-9.0.39/bin'
 TOMCAT_URL_ROOT=‘http://127.0.0.1:38080’
 
 ############end此行勿删##############
+```
+
+```shell
+$ shc -e 03/31/2007 -m "过期啦~赶紧续费~" -f 2019.sh
+gzexe 2019.sh
+
+-e表示脚本将在2007年3月31日前失效, 并根据-m定义的信息返回给终端用户.
+```
+
+```shell
+## AUTHOR:WINJAY
+## DATE:2022年04月25日 星期一 17时16分47秒
+################默认配置##################
+##全部包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
+##SERVER_VERSION='-1.0.0'
+ALL_ARRAY=(da-eureka-1.1.0.jar da-config-1.1.0.jar da-zuul-1.1.0.jar da-server-1.1.0.jar da-server-prefiling-1.1.0.jar da-interServer-1.1.0.jar da-rabbitmq-receive-1.1.0.jar)
+TOMCAT_ARRAY=(tomcatJT tomcatPRE tomcatTH)
+##常用包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号
+COMMON_ARRAY=(da-server-1.1.0.jar da-server-prefiling-1.1.0.jar da-interServer-1.1.0.jar da-rabbitmq-receive-1.1.0.jar tomcatJT tomcatPRE tomcatTH)
+##快速包,按启动顺序存放所有jar、war包,空格隔开，禁止逗号,根据最后一个服务来获取关键日志
+FAST_ARRAY=('da-eureka-1.1.0.jar,da-config-1.1.0.jar' 'da-zuul-1.1.0.jar,da-server-1.1.0.jar,da-server-prefiling-1.1.0.jar,da-interServer-1.1.0.jar' 'da-rabbitmq-receive-1.1.0.jar' 'tomcatJT,tomcatPRE,tomcatTH')
+##日志默认路径，默认是脚本所在路径
+LOGS_DIR=/data/
+##输出日志默认名称，默认output.txt
+##OUTPUT_LOGS_NAME=output.txt
+##存放服务的默认路径，默认是脚本所在路径
+SERVER_DIR=/data/project_release/
+##报错重试次数，选填，默认2次
+##RETRYS=2
+##超时退出，单位秒，选填，默认300秒
+##TTL=300
+##默认监听日志启动关键内容
+##DEFAULT_LISTEN='JVM running for'
+################SERVER服务配置【参数选配】##################
+##服务命名规则：如da-server-1.0.0.jar，则取名为da_server,注意，必须为下划线
+##LOGS_服务名称前缀：日志名称 【选填】
+##LISTEN_服务名称前缀：日志监听文本，启动成功的关键内容 【选填】
+##JAVA_OPTS_服务名称前缀：服务jvm参数 【选填】
+##SPRING_CONFIG_服务名称前缀：spring参数 【选填】
+##==============示例 start====================
+##ALL_ARRAY=(da-server-1.0.0)
+##LISTEN_da_server=Application version is -1: false
+##SPRING_CONFIG_da_server=-Dspring.config.location=/opt/da/prod/,classpath:/application.yml
+##LOGS_da_server=server.txt
+##JAVA_OPTS_da_server=-Xdebug -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8887
+##==============示例 end======================
+################da-eureka-1.1.0.jar【选填】##################
+LOGS_da_eureka='eureka.txt'
+#LISTEN_da_eureka=
+#JAVA_OPTS_da_eureka=
+#SPRING_CONFIG_da_eureka=  　
+################da-config-1.1.0.jar【选填】##################
+LOGS_da_config='config.txt'
+LISTEN_da_config='Application version is -1: false'
+#JAVA_OPTS_da_config=
+#SPRING_CONFIG_da_config=  　
+################da-zuul-1.1.0.jar【选填】##################
+LOGS_da_zuul='zuul.txt'
+#LISTEN_da_zuul=
+#JAVA_OPTS_da_zuul=
+#SPRING_CONFIG_da_zuul=  　
+################da-server-1.1.0.jar【选填】##################
+LOGS_da_server='server.txt'
+#LISTEN_da_server=
+#JAVA_OPTS_da_server=
+#SPRING_CONFIG_da_server=  　
+################da-server-prefiling-1.1.0.jar【选填】##################
+LOGS_da_server_prefiling='server-pre.txt'
+#LISTEN_da_server_prefiling=
+#JAVA_OPTS_da_server_prefiling=
+#SPRING_CONFIG_da_server_prefiling=  　
+################da-interServer-1.1.0.jar【选填】##################
+LOGS_da_interServer='inter.txt'
+#LISTEN_da_interServer=
+#JAVA_OPTS_da_interServer=
+#SPRING_CONFIG_da_interServer=  　
+################da-rabbitmq-receive-1.1.0.jar【选填】##################
+LOGS_da_rabbitmq_receive='rabbit.txt'
+#LISTEN_da_rabbitmq_receive=
+#JAVA_OPTS_da_rabbitmq_receive=
+#SPRING_CONFIG_da_rabbitmq_receive=  　
+
+############Tomcat服务配置【全部参数必须配置】##############
+##服务命名规则：如da-server-1.0.0.jar，则取名为da_server,注意，必须为下划线
+##TOMCAT_SERVER_服务名称前缀：启动的服务名称，一般说tomcat的名称，用于监听服务【必填】
+##TOMCAT_START_服务名称前缀：服务启动路径【必填】
+##TOMCAT_URL_服务名称前缀：服务启动成功的监听地址【必填】
+##==============示例 start====================
+##TOMCAT_ARRAY=(ROOT)
+##TOMCAT_SERVER_ROOT='apache-tomcat-9.0.39'
+##TOMCAT_START_ROOT='F:/Download/apache-tomcat-9.0.39/bin'
+##TOMCAT_URL_ROOT='127.0.0.1:38080'
+##==============示例 end======================
+################tomcatJT【必填，自行放开注释】##################
+TOMCAT_START_tomcatJT='/data/tomcat/apache-tomcat-9.0.50/bin/startup.sh'
+TOMCAT_URL_tomcatJT='127.0.0.1:8009'
+TOMCAT_SERVER_tomcatJT='apache-tomcat-9.0.50'
+
+################tomcatPRE【必填，自行放开注释】##################
+TOMCAT_START_tomcatPRE='/data/tomcat/apache-tomcat-9.0.50-pre/bin/startup.sh'
+TOMCAT_URL_tomcatPRE='127.0.0.1:8019'
+TOMCAT_SERVER_tomcatPRE='apache-tomcat-9.0.50-pre'
+
+################tomcatTH【必填，自行放开注释】##################
+TOMCAT_START_tomcatTH='/data/tomcat/apache-tomcat-9.0.50-th/bin/startup.sh'
+TOMCAT_URL_tomcatTH='127.0.0.1:8022'
+TOMCAT_SERVER_tomcatTH='apache-tomcat-9.0.50-th'
+
+############end此行勿删##############
+
 ```
 
