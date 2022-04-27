@@ -626,7 +626,7 @@ function startProcess(){
 	local percent=$[$count + num]
 	
 	##实时进度百分比
-	if [[ $percent -le 99 && ($percent -gt $tempslot || ! $tempslot) ]];then
+	if [[ $percent -le 99 && ($percent -gt $tempslot || $tempslot -eq 0) ]];then
 		tempslot=$percent
 		if [ $percent -lt 10 ];then
 			printf "%d%%\b\b" $percent
@@ -689,6 +689,7 @@ function startProcess(){
 	if [[ $fail -eq 0 && $success -eq 0 ]];then
 		startProcess "$APP_NAME" "$LOGS" "$LISTEN_SERVER" "$LISTEN_URL"
 	else
+		tmsg=500
 		tempslot=0
 		count=1
 		echo
@@ -781,13 +782,13 @@ function restart(){
 	echo -e "${GREEN}常用服务:${COMMON_ARRAY[*]} ${RES}"
 	echo -e "${YELLOW}输入常用服务下标索引指定服务重启：如：输入0，代表启动第一个服务${RES}"
 	echo -e "${YELLOW}-1：退出；all：重启所有服务；不输入默认重启日常服务${RES}"
-	read -ep "请输入常用服务索引:" restartType
+	read -ep "请输入常用服务索引(多个服务用逗号隔开):" restartType
 	restartType=(${restartType//,/ })
 	if [[ "${restartType}" == "all" ]];then
 		echo "all"
-	elif [[ "${restartType[$0]}" =~ ^[-1-9]+$  ]];then
+	elif [[ "${restartType[0]}" =~ ^[-]?[0-9][0-9]*$ $$ $restartType ]];then
 		local lastIndex=$((${#COMMON_ARRAY[@]}-1))
-		if [[ "$restartType" -eq -1 ]];then
+		if [[ "$restartType" -le -1 ]];then
 			echo -e "${GREEN}正常退出${RES}"
 			exit 0
 		elif [[ "$restartType" -lt ${#COMMON_ARRAY[@]} ]];then
@@ -1040,7 +1041,7 @@ function valid(){
 		validParam "$TOMCAT_START" "$TEMP_TOMCAT_START"
 		validParam "$TOMCAT_URL" "$TEMP_TOMCAT_URL"
 		if [ -f  $TOMCAT_START ];then
-			echo -e "${GREEN} $name'检测成功!${RES}"
+			echo -e "${GREEN} $name检测成功!${RES}"
 		else
 			NOTFOUNF=1
 			echo -e "${RED}$SERVER_DIR'路径下不存在服务：$name ${RES}"
