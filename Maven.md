@@ -659,7 +659,11 @@ function startProcess(){
 			for(( i=$percent; $i<=100; i++ ))
 			do
 				sleep 0.01
-				printf "%d%%\b\b\b" $i
+				if [ $i -lt 10 ];then
+					printf "%d%%\b\b" $i
+				else
+					printf "%d%%\b\b\b" $i
+				fi
 			done
 		fi
 	fi
@@ -898,9 +902,9 @@ function startTomcat(){
 		if [[ $tempRetry -ne 1 ]];then
 			retry=$RETRYS ##每个服务最大重试次数
 		fi
-		echo -n -e "${YELLOW}正在启动$var_app_name.....${RES}"
+		echo -n -e "${YELLOW}正在启动$var_app_name ...${RES}"
 		START_TIME_SYS=`date +%s`
-		runTomcat $var_app_name > /dev/null
+		runTomcat $var_app_name
 		END_TIME_SYS=`date +%s`
 		SUM_TIME_SYS=$[ $END_TIME_SYS - $START_TIME_SYS ]
 		TOTAL_TIME_SYS=$[$TOTAL_TIME_SYS + $SUM_TIME_SYS ]
