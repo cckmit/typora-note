@@ -637,7 +637,13 @@ function startProcess(){
 	
 	## 特殊服务特殊处理
 	if [[ $LISTEN_URL ]];then
-		if [[ $(curl -sIL -w "%{http_code}" -o /dev/null $LISTEN_URL) -eq 200 ]];then
+		##-I/--head 仅返回消息头部，使用HEAD请求
+		##-s/--slient 减少输出的信息，比如进度
+		##--connect-timeout <seconds> 指定尝试连接的最大时长
+		##-m/--max-time <seconds> 指定处理的最大时长
+		##-w "参数"  自定义curl的输出
+		##-o/--output <file> 指定输出文件名称
+		if [[ $(curl -I -s --connect-timeout 1 -m 1 -w "%{http_code}" -o /dev/null $LISTEN_URL) -eq 200 ]];then
 			tmsg=200
 		fi
 	elif [[ $LOGS ]];then
@@ -790,7 +796,7 @@ function restart(){
 	restartType=(${restartType//,/ })
 	if [[ "${restartType}" == "all" ]];then
 		echo "all"
-	elif [[ "${restartType[0]}" =~ ^[-]?[0-9][0-9]*$ $$ $restartType ]];then
+	elif [[ "${restartType}" =~ ^[-]?[0-9][0-9]*$ && $restartType ]];then
 		local lastIndex=$((${#COMMON_ARRAY[@]}-1))
 		if [[ "$restartType" -le -1 ]];then
 			echo -e "${GREEN}正常退出${RES}"
@@ -823,6 +829,7 @@ function restart(){
 		 ALL_ARRAY=(${TEMP_ALL_ARRAY[*]})
 		 TOMCAT_ARRAY=(${TEMP_TOMCAT_ARRAY[*]})
 	fi
+	valid
 	stop
 	start
 }
@@ -1259,7 +1266,6 @@ case "$1" in
 	stop
 	;;
 	'restart')
-	valid
 	restart
 	;;
 	'faststart')
