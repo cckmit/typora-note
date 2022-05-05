@@ -929,6 +929,16 @@ function runTomcat(){
 	local TOMCAT_URL=`eval echo '$'"${TEMP_TOMCAT_URL}"`
 	local TEMP_TOMCAT_SERVER=TOMCAT_SERVER_$var_app_name		##tomcat服务名称
 	local TOMCAT_SERVER=`eval echo '$'"${TEMP_TOMCAT_SERVER}"`
+	local TEMP_REMOTE=LISTEN_REMOTE_URL_$var_app_name	## 远程地址监听
+	local REMOTE_URL=`eval echo '$'"${TEMP_REMOTE}"`
+	
+	if [[ $REMOTE_URL ]];then 
+		echo
+		echo -n -e "${DEEP_GREEN}正在监听远程地址$REMOTE_URL...${RES}"
+		listenRemote "$REMOTE_URL"
+		echo -n -e "${DEEP_GREEN}远程地址$REMOTE_URL启动成功，正在启动$var_app_name...${DEEP_GREEN}"
+	fi
+	
 	sh $TOMCAT_START  > /dev/null
 	startProcess $TOMCAT_SERVER -1 -1 $TOMCAT_URL
 }
@@ -945,7 +955,16 @@ function run(){
 	local LISTEN=`eval echo '$'"${TEMP_LISTEN}"`
 	local TEMP_SPRING_CONFIG=SPRING_CONFIG_$name	## spring配置参数
 	local SPRING_CONFIG=`eval echo '$'"${TEMP_SPRING_CONFIG}"`
-
+	local TEMP_REMOTE=LISTEN_REMOTE_URL_$name	## 远程地址监听
+	local REMOTE_URL=`eval echo '$'"${TEMP_REMOTE}"`
+	
+	if [[ $REMOTE_URL ]];then 
+		echo
+		echo -n -e "${DEEP_GREEN}正在监听远程地址$REMOTE_URL...${RES}"
+		listenRemote "$REMOTE_URL"
+		echo -n -e "${DEEP_GREEN}远程地址$REMOTE_URL启动成功，正在启动$name...${DEEP_GREEN}"
+	fi
+	
 	if [[ ! $log ]];then 
 		log=$OUTPUT_LOGS_NAME
 	fi
@@ -955,7 +974,6 @@ function run(){
 	if [[ ! $LISTEN ]];then 
 		LISTEN=$DEFAULT_LISTEN
 	fi
-
 	if [[ $isLog -ne 1 ]];then
 		rm -f log $LOGS_DIR$log
 		nohup java $JAVA_OPTS -jar $SPRING_CONFIG $SERVER_DIR$var_app_name >$LOGS_DIR$log 2>&1 &
@@ -964,6 +982,60 @@ function run(){
 	else
 		nohup java $JAVA_OPTS -jar $SPRING_CONFIG $SERVER_DIR$var_app_name > /dev/null 2>&1 &
 	fi	
+}
+
+## 远程地址监听
+function listenRemote(){
+	local LISTEN_URL=$1	
+	sleep 1
+	listen_count=$[$listen_count + 1]
+	local listen_num=$[RANDOM%10+1]
+	local listen_percent=$[$listen_count + num]
+	
+	##实时进度百分比
+	if [[ $listen_percent -le 99 && ($listen_percent -gt $listen_tempslot || $listen_tempslot -eq 0) ]];then
+		listen_tempslot=$listen_percent
+		if [ $listen_percent -lt 10 ];then
+			printf "%d%%\b\b" $listen_percent
+		else
+			printf "%d%%\b\b\b" $listen_percent
+		fi
+	fi
+	
+	## 特殊服务特殊处理
+	if [[ $LISTEN_URL ]];then
+		if [[ $(curl -I -s --connect-timeout 1 -m 1 -w "%{http_code}" -o /dev/null $LISTEN_URL) -eq 200 ]];then
+			tmsg=200
+		fi
+	fi
+
+	## 超时退出监听
+	if [[ ${tmsg} -ne 200 && $listen_count -eq $TTL ]];then
+		echo -e "${RED}$LISTEN_URL 监听超时，请检查该地址是否启动成功！${RES}"
+		exit 1
+	fi
+	
+	if [[ ${tmsg} -ne 200 ]];then
+		listenRemote "$LISTEN_URL"
+	fi
+	
+	if [[ $listen_percent -ge 100 ]];then
+			printf "%d%%\b\b\b" 100
+	else
+			for(( i=$listen_percent; $i<=100; i++ ))
+			do
+				sleep 0.01
+				if [ $i -lt 10 ];then
+					printf "%d%%\b\b" $i
+				else
+					printf "%d%%\b\b\b" $i
+				fi
+			done
+	fi
+	
+	listen_tempslot=0
+	listen_count=1
+	echo
 }
 
 ##java 环境信息
@@ -1096,11 +1168,14 @@ function info(){
 		local LISTEN=`eval echo '$'"${TEMP_LISTEN}"`
 		local TEMP_SPRING_CONFIG=SPRING_CONFIG_$var_app_name	## spring配置参数
 		local SPRING_CONFIG=`eval echo '$'"${TEMP_SPRING_CONFIG}"`
+		local TEMP_REMOTE=LISTEN_REMOTE_URL_$var_app_name	## 远程地址监听
+		local REMOTE_URL=`eval echo '$'"${TEMP_REMOTE}"`
 		echo -e "${BLUE}服务名称:$var_server ${RES}"
 		echo -e "${BLUE}日志名称:$log ${RES}"
 		echo -e "${BLUE}监听日志内容:$LISTEN ${RES}"
 		echo -e "${BLUE}jvm参数:$JAVA_OPTS ${RES}"
 		echo -e "${BLUE}spring配置参数:$SPRING_CONFIG ${RES}"
+		echo -e "${BLUE}远程地址监听:$REMOTE_URL ${RES}"
 		echo -e "${BLUE}=========================================================== ${RES}"
 	done
 	echo -e "${BACK_RED}==================TOMCAT配置================${RES}"
@@ -1115,11 +1190,28 @@ function info(){
 		local TOMCAT_URL=`eval echo '$'"${TEMP_TOMCAT_URL}"`
 		local TEMP_TOMCAT_SERVER=TOMCAT_SERVER_$var_app_name  ##tomcat服务名称
 		local TOMCAT_SERVER=`eval echo '$'"${TEMP_TOMCAT_SERVER}"`
+		local TEMP_REMOTE=LISTEN_REMOTE_URL_$var_app_name	## 远程地址监听
+		local REMOTE_URL=`eval echo '$'"${TEMP_REMOTE}"`
 		echo -e "${BLUE}服务名称:$TOMCAT_SERVER ${RES}"
 		echo -e "${BLUE}启动路径:$TOMCAT_START ${RES}"
-		echo -e "${BLUE}监听地址:$TOMCAT_URL ${RES}"	
+		echo -e "${BLUE}监听地址:$TOMCAT_URL ${RES}"
+		echo -e "${BLUE}远程地址监听:$REMOTE_URL ${RES}"		
 		echo -e "${BLUE}=========================================================== ${RES}"	
 	done
+}
+
+## 监控服务心跳
+function monitor(){
+	if [[ $1 -eq 1 ]];then
+		echo 
+		sleep 60
+		monitor 1
+	elif [[ $1 -eq 0 ]];then
+		`sed -i '/$0/d' /var/spool/cron/root`
+		`crontab -r`
+	else
+		`*/1 * * * * sh $0 $(start) >> $CUR_PATH"monitor_logs.txt"`
+	fi
 }
 
 # 格式化数据
@@ -1164,12 +1256,14 @@ TOMCAT_ARRAY=($TOMCAT_ARRAY)
 ##LISTEN_服务名称前缀：日志监听文本，启动成功的关键内容 【选填】
 ##JAVA_OPTS_服务名称前缀：服务jvm参数 【选填】
 ##SPRING_CONFIG_服务名称前缀：spring参数 【选填】
+##LISTEN_REMOTE_URL_服务名称前缀：监听远程地址，成功后再往下执行 【选填】
 ##==============示例 start====================
 ##ALL_ARRAY=(da-server-1.0.0)
 ##LISTEN_da_server="Application version is -1: false"
 ##SPRING_CONFIG_da_server="-Dspring.config.location=/opt/da/prod/,classpath:/application.yml"
 ##LOGS_da_server=server.txt
 ##JAVA_OPTS_da_server="-Xdebug -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=8887"
+##LISTEN_REMOTE_URL_da_server='127.0.0.1:8080'
 ##==============示例 end======================" > $SCRIPT_CONFIG
 for var_server in ${ALL_ARRAY[*]}
 	do
@@ -1178,11 +1272,13 @@ for var_server in ${ALL_ARRAY[*]}
 		local TEMP_JAVA_OPTS=JAVA_OPTS_$var_app_name		## jvm参数
 		local TEMP_LISTEN=LISTEN_$var_app_name		## 监听日志
 		local TEMP_SPRING_CONFIG=SPRING_CONFIG_$var_app_name	## spring配置参数
+		local TEMP_REMOTE_URL=LISTEN_REMOTE_URL_$var_app_name		## 监听远程地址
 	echo "################$var_server【选填】##################
 #$TEMP_LOGS=
 #$TEMP_LISTEN=
 #$TEMP_JAVA_OPTS=
-#$TEMP_SPRING_CONFIG= " >> $SCRIPT_CONFIG	　
+#$TEMP_SPRING_CONFIG= 
+#TEMP_REMOTE_URL= " >> $SCRIPT_CONFIG	　
 	done
 	
 echo "
@@ -1191,6 +1287,7 @@ echo "
 ##TOMCAT_SERVER_服务名称前缀：启动的服务名称，一般说tomcat的名称，用于监听服务【必填】
 ##TOMCAT_START_服务名称前缀：服务启动路径【必填】
 ##TOMCAT_URL_服务名称前缀：服务启动成功的监听地址【必填】
+##LISTEN_REMOTE_URL_服务名称前缀：监听远程地址，成功后再往下执行 【选填】
 ##==============示例 start====================
 ##TOMCAT_ARRAY=(ROOT)
 ##TOMCAT_SERVER_ROOT='apache-tomcat-9.0.39'
@@ -1204,10 +1301,12 @@ for var_tomcat in ${TOMCAT_ARRAY[*]}
 		local TEMP_TOMCAT_START=TOMCAT_START_$var_app_name	## tomcat启动路径
 		local TEMP_TOMCAT_URL=TOMCAT_URL_$var_app_name		##tomcat监听地址
 		local TEMP_TOMCAT_SERVER=TOMCAT_SERVER_$var_app_name  ##tomcat服务名称
+		local TEMP_REMOTE_URL=LISTEN_REMOTE_URL_$var_app_name		## 监听远程地址
 		echo "################$var_tomcat【必填，自行放开注释】##################
 #$TEMP_TOMCAT_START=
 #$TEMP_TOMCAT_URL=
 #$TEMP_TOMCAT_SERVER=
+#TEMP_REMOTE_URL= 
 " >> $SCRIPT_CONFIG	
 	done
 	echo "############end此行勿删##############" >> $SCRIPT_CONFIG
@@ -1287,8 +1386,8 @@ case "$1" in
 	echo -e "${BACK_RED}==================命令指南================${RES}"
 	echo -e "${DEEP_GREEN}start:正常启动所有服务，已经启动的服务不会再次启动，若中途出现报错则会自动重试，重试次数默认2次，服务启动超时则跳过继续下一个服务${RES}"
 	echo -e "${DEEP_GREEN}stop:正常关闭所有服务${RES}"
-	echo -e "${DEEP_GREEN}restart: all-启动所有服务 | server-单独启动server服务 | web-单独启动web服务 | 默认启动server和web两个服务${RES}"
-	echo -e "${DEEP_GREEN}faststart: 快速启动所有服务，报错不会自动重试，服务启动超时则跳过继续下一个服务${RES}"
+	echo -e "${DEEP_GREEN}restart: 重启服务，需在COMMON_ARRAY定义服务${RES}"
+	echo -e "${DEEP_GREEN}faststart: 快速启动所有服务，需在FAST_ARRAY定义服务 ${RES}"
 	echo -e "${DEEP_GREEN}status:查看服务状态及基本信息${RES}"
 	echo -e "${DEEP_GREEN}info:查看配置文件信息 ${RES}"
 	echo -e "${DEEP_GREEN}java:查看java基本信息${RES}"
