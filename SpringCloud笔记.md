@@ -7,18 +7,114 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>com.example</groupId>
-    <artifactId>SpringCloud</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
-    <name>SpringCloud</name>
-    <!--pom打包-->
-    <packaging>pom</packaging>
 
-    <!--子工程模块-->
+    <groupId>com.wj</groupId>
+    <artifactId>SpringCloud</artifactId>
+    <version>1.1.0</version>
+    <name>SpringCloud</name>
+    <packaging>pom</packaging>
+    
+     <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <java.version>1.8</java.version>
+        <!--springboot和springcloud版本必须对应，详情网上找-->
+        <spring-cloud.version>Hoxton.RELEASE</spring-cloud.version>
+    </properties>
+
+     <!--注册各个模块-->
     <modules>
+        <module>Common</module>
+        <module>DataSource</module>
+        <module>SpringCloud_Feign</module>
         <module>SpringCloud_Eureka</module>
         <module>SpringCloud_Config</module>
+        <module>SpringCloud_Zuul</module>
+        <module>SpringCloud_Server</module>
     </modules>
+
+    <!--发现依赖和扩展的远程仓库列表。 -->
+    <repositories>
+        <repository>
+            <!--远程仓库唯一标识符。可以用来匹配在settings.xml文件里配置的远程仓库 -->
+            <id>nexus-aliyun</id>
+            <!--远程仓库名称 -->
+            <name>Nexus aliyun</name>
+            <!--远程仓库URL，按protocol://hostname/path形式 -->
+            <url>http://maven.aliyun.com/nexus/content/groups/public</url>
+        </repository>
+    </repositories>
+
+    <!--
+        1.首先springboot的核心就是starter模块核心依赖和autoconfiguration自动配置
+		starter：每个spring框架都有与之对应的starter,如springmvc有spring-boot-starter-web
+					spring-boot-starter-web内置web容器tomcate等
+		autoconfiguration：自动化配置为springboot项目简化了繁琐的配置文件；核心就是通过@SpringBootApplication继承了
+					@SpringBootConfiguration和@EnableAutoConfiguration和@ComponentScan这三个注解；而配置文件
+					application.yml和@configuration定义的类的配置能够生效，就是靠autoconfiguration;可以通过
+					spring-boot-autoconfigration-1.2.*.RELEASE.jar里面的spring-configuration-metadata.json看到所有当前
+					starter（框架）下面所有定义的配置属性。
+        2.spring-boot-starter-parent是一个springboot项目的父工程，它定义了很多当前项目的规范
+		1.定义了 Java 编译版本为 1.8 。
+		2.使用 UTF-8 格式编码。
+		3.继承自 spring-boot-dependencies，这个里边定义了依赖的版本，也正是因为继承了这个依赖，所以我们在写依赖时才
+			不需要写版本号。
+		4.执行打包操作的配置。
+		5.自动化的资源过滤。
+		6.自动化的插件配置。
+		7.针对 application.properties 和 application.yml 的资源过滤，包括通过 profile 定义的不同环境的配置文件，
+			例如 application-dev.properties 和 application-dev.yml。
+        3.所以一般的maven父pom工程都继承spring-boot-dependencies；
+		这样写之后，依赖的版本号问题虽然解决了，但是关于打包的插件、编译的 JDK 版本、文件的编码格式等等
+		这些配置，在没有 parent 的时候，这些统统要自己去配置。 -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.3.1.RELEASE</version> <!-- 在父工程统一springboot版本 -->
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+
+    <!-- 全局springCloud版本，注意与springboot版本对应，否则报错 -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <!-- 全局通用依赖，注意使用 -->
+    <dependencies>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-test</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+        </dependency>
+        <!-- slf4j+log4j2依赖 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-log4j2</artifactId>
+        </dependency>
+    </dependencies>
+
 </project>
 
 ```
@@ -51,27 +147,17 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.example</groupId>
-    <artifactId>SpringCloud_Eureka-server</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
-    <packaging>jar</packaging>
-
-    <name>SpringCloud_Eureka</name>
-    <description>SpringCloud_Eureka</description>
-
     <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.0.4.RELEASE</version>
-        <relativePath/> <!-- lookup parent from repository -->
+        <artifactId>SpringCloud</artifactId>
+        <groupId>com.wj</groupId>
+        <version>1.1.0</version>
     </parent>
 
-    <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <java.version>1.8</java.version>
-        <spring-cloud.version>Finchley.RELEASE</spring-cloud.version>
-    </properties>
+    <groupId>com.wj</groupId>
+    <artifactId>springCloud_eureka</artifactId>
+    <version>${parent.version}</version>
+    <name>SpringCloud_Eureka</name>
+    <description>SpringCloud_Eureka</description>
 
     <dependencies>
         <!--eureka-server服务端 -->
@@ -79,29 +165,34 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-eureka-server</artifactId>
             <version>1.4.5.RELEASE</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
     </dependencies>
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.springframework.cloud</groupId>
-                <artifactId>spring-cloud-dependencies</artifactId>
-                <version>${spring-cloud.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-    <build>
+
+    <build><finalName>${name}-${parent.version}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>2.3.4.RELEASE</version>
+                <configuration>
+                    <fork>false</fork>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>1.8</source>
+                    <target>1.8</target>
+                    <skip>true</skip>
+                    <encoding>UTF-8</encoding>
+                </configuration>
             </plugin>
         </plugins>
     </build>
@@ -440,6 +531,59 @@ zuul:
 
 
 
-## 4.Feign —— 负载均衡（服务调用）
+## 4.OpenFeign —— 负载均衡
+
+（1）简介
+
+> Open[Feign](https://so.csdn.net/so/search?q=Feign) 是 Spring Cloud 家族的一个成员， 它最核心的作用是为 HTTP 形式的 Rest [API](https://so.csdn.net/so/search?q=API&spm=1001.2101.3001.7020) 提供了非常简洁高效的 RPC 调用方式
+
+（2）OpenFeign的用途及实现原理
+
+> openfeign的用途：服务发现，负载均衡，服务调用
+>
+> openfeign的实现原理：基于@EnableFeignClients 将所有被@FeignClient注解的类 注册到容器中。当这些被@FeignClient注解的类被调用时会创建一个动态代理的对象为我们创建被调用类的实例，然后都会被统一转发给 Feign 框架所定义的一个 InvocationHandler ， 由该 Handler 完成后续的 HTTP 转换， 发送， 接收， 翻译HTTP响应的工作
+
+（3）依赖
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <artifactId>SpringCloud</artifactId>
+        <groupId>com.wj</groupId>
+        <version>1.1.0</version>
+    </parent>
+
+    <groupId>com.wj</groupId>
+    <artifactId>springCloud_feign</artifactId>
+    <version>1.1.0</version>
+    <name>SpringCloud_feign</name>
+    <description>SpringCloud_feign</description>
+
+    <dependencies>
+        <!--openFeign-->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>${name}-${parent.version}</finalName>
+        <plugins>
+            <plugin>
+                <!--跳过打包测试-->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+```
 
 ## 5. Hystrix  —— 熔断器
